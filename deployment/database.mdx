@@ -1,0 +1,144 @@
+---
+title: "Configure PostgreSQL for ReservaFácil"
+sidebarTitle: "Database"
+description: "Set up a PostgreSQL database for ReservaFácil using Neon.tech or any PostgreSQL provider. Covers schema push, migrations, and the seed script."
+---
+
+ReservaFácil uses PostgreSQL as its sole data store, accessed through Prisma ORM. The schema covers three core models — `Usuario`, `Cancha`, and `Reserva` — along with the enums that drive roles, court types, and booking states. This guide walks you through choosing and provisioning a database, pushing the schema, and optionally seeding local test data.
+
+## Supported Databases
+
+ReservaFácil requires **PostgreSQL 13 or later**. The Prisma datasource is configured with `provider = "postgresql"` and reads the connection URL from the `DATABASE_URL` environment variable.
+
+<CardGroup cols={2}>
+  <Card title="Neon.tech (Recommended)" icon="bolt">
+    Serverless PostgreSQL with a generous free tier, instant branching, and SSL enabled by default. No credit card required. Perfect for both development and production.
+  </Card>
+  <Card title="Any PostgreSQL 13+ Provider" icon="database">
+    Compatible with Supabase, Railway, Render, AWS RDS, Google Cloud SQL, or a self-hosted instance — as long as you can supply a valid connection string with SSL.
+  </Card>
+</CardGroup>
+
+## Setting Up Neon.tech
+
+<Steps>
+  <Step title="Create a Neon account">
+    Go to [neon.tech](https://neon.tech) and sign up for free. You can authenticate with your GitHub, Google, or email account. No credit card is required for the free tier.
+  </Step>
+
+  <Step title="Create a new project">
+    After signing in, click **New Project**. Give it a name (e.g. `reservafacil`), choose your preferred cloud region, and click **Create Project**. Neon provisions a PostgreSQL 16 database in seconds.
+  </Step>
+
+  <Step title="Copy the connection string">
+    On the project dashboard, open the **Connection Details** panel and select the **Prisma** connection string format. It will look similar to:
+
+    ```
+    postgresql://user:password@ep-xxx-yyy.us-east-2.aws.neon.tech/reservafacil?sslmode=require
+    ```
+
+    Note the `?sslmode=require` suffix — this is mandatory for Neon and is already included in the connection string it provides.
+  </Step>
+
+  <Step title="Add DATABASE_URL to your environment file">
+    Create (or open) `.env.local` in the project root and set the variable:
+
+    ```bash
+    # .env.local
+    DATABASE_URL="postgresql://user:password@ep-xxx-yyy.us-east-2.aws.neon.tech/reservafacil?sslmode=require"
+    ```
+
+    `.env.local` is listed in `.gitignore` — never commit real credentials to version control.
+  </Step>
+</Steps>
+
+## Initializing the Database Schema
+
+Once `DATABASE_URL` points to a live PostgreSQL instance, push the Prisma schema to create all tables and enums:
+
+```bash
+npx prisma db push
+```
+
+This command reads `prisma/schema.prisma`, compares it to the current database state, and applies the necessary DDL statements (CREATE TABLE, CREATE TYPE, etc.) to bring the two into sync. It is non-destructive on empty databases and ideal for first-time setup.
+
+```
+Environment variables loaded from .env.local
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "reservafacil" at "ep-xxx-yyy.us-east-2.aws.neon.tech:5432"
+
+🚀 Your database is now in sync with your Prisma schema.
+
+✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 312ms
+```
+
+After a successful push, your database will contain the following tables:
+
+| Table | Description |
+|---|---|
+| `Usuario` | Platform users with roles: `SUPERADMIN`, `ADMIN`, `USUARIO` |
+| `Cancha` | Sports courts with type, pricing, and capacity |
+| `Reserva` | Bookings linking a user to a court with time slot and status |
+
+<Note>
+  Prisma Client is regenerated automatically every time you run `npm install`, thanks to the `postinstall` script in `package.json` (`prisma generate`). You only need to run `npx prisma db push` manually when setting up a new database or after modifying `schema.prisma`.
+</Note>
+
+## The Seed Script
+
+The seed script (`prisma/seed.ts`) populates your local development database with a minimal set of test users and courts so you can log in and explore all roles immediately after setup.
+
+### What the seed creates
+
+**Users (3)**
+
+| Role | Email | Password |
+|---|---|---|
+| `SUPERADMIN` | `superadmin@reservafacil.com` | `superadmin123` |
+| `ADMIN` | `admin@reservafacil.com` | `admin123` |
+| `USUARIO` | `usuario@reservafacil.com` | `usuario123` |
+
+**Courts (3)**
+
+| Name | Type | Price per hour | Capacity |
+|---|---|---|---|
+| Cancha Fútbol 1 | `FUTBOL` | S/ 50 | 10 players |
+| Cancha Tenis A | `TENIS` | S/ 30 | 4 players |
+| Cancha Básquet | `BASQUET` | S/ 40 | 10 players |
+
+### Running the seed
+
+Make sure your database schema is already pushed (see above), then run:
+
+```bash
+npm run seed
+```
+
+On success you will see:
+
+```
+Iniciando seed...
+Seed completado!
+Superadmin: superadmin@reservafacil.com / superadmin123
+Admin: admin@reservafacil.com / admin123
+Usuario: usuario@reservafacil.com / usuario123
+```
+
+<Warning>
+  The seed script calls `prisma.reserva.deleteMany()`, `prisma.cancha.deleteMany()`, and `prisma.usuario.deleteMany()` **before** inserting any data. Running it against a database that already contains real records will permanently delete all existing bookings, courts, and users. Only run `npm run seed` in a local development environment — never against your production database.
+</Warning>
+
+## Inspecting the Database with Prisma Studio
+
+Prisma Studio is a visual browser-based editor for your database. It is useful for verifying that migrations applied correctly and for inspecting or manually editing records during development.
+
+```bash
+npx prisma studio
+```
+
+This opens a local web UI at `http://localhost:5555` where you can browse every table, filter rows, and update fields without writing SQL.
+
+```
+Environment variables loaded from .env.local
+Prisma Studio is up on http://localhost:5555
+```

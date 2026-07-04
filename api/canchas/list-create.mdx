@@ -1,0 +1,216 @@
+---
+title: "List and Create Courts — Courts API"
+sidebarTitle: "List & Create"
+description: "GET /api/canchas returns all courts. POST /api/canchas creates a new court. Requires ADMIN or SUPERADMIN role for creation."
+---
+
+The Courts API lets you retrieve every registered court on the platform and, if you hold an administrative role, create new ones. Courts are the central resource in ReservaFácil — each court (`Cancha`) has a type, pricing, capacity, and an active flag that controls availability for booking.
+
+---
+
+## GET /api/canchas
+
+Returns all courts stored in the database, sorted alphabetically by name. This endpoint is **public** — no authentication or session cookie is required.
+
+<Note>
+  The response always includes every court regardless of its `activa` status. Client-side code should filter on `activa: true` when displaying bookable courts to end users.
+</Note>
+
+### Response — 200 OK
+
+```json
+{
+  "canchas": [
+    {
+      "id": "clx0z1abc0000defg1234hijk",
+      "nombre": "Cancha Fútbol Norte",
+      "tipo": "FUTBOL",
+      "descripcion": "Cancha de fútbol 7 con césped sintético.",
+      "precioPorHora": 35000,
+      "capacidad": 14,
+      "activa": true,
+      "imagen": "https://cdn.example.com/canchas/futbol-norte.jpg",
+      "creadoEn": "2024-03-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Response fields
+
+<ResponseField name="canchas" type="Cancha[]" required>
+  Array of all court objects ordered by `nombre` ascending.
+
+  <Expandable title="Cancha object fields">
+    <ResponseField name="id" type="string" required>
+      Unique court identifier (CUID format), e.g. `"clx0z1abc0000defg1234hijk"`.
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string" required>
+      Human-readable name of the court, e.g. `"Cancha Fútbol Norte"`.
+    </ResponseField>
+
+    <ResponseField name="tipo" type="'FUTBOL' | 'TENIS' | 'BASQUET' | 'VOLLEYBALL'" required>
+      Sport type assigned to this court. One of the four values defined in the `TipoCancha` enum.
+    </ResponseField>
+
+    <ResponseField name="descripcion" type="string | null">
+      Optional free-text description of the court's features or rules. `null` when not provided.
+    </ResponseField>
+
+    <ResponseField name="precioPorHora" type="number" required>
+      Hourly rental price in the platform's local currency (floating-point).
+    </ResponseField>
+
+    <ResponseField name="capacidad" type="number" required>
+      Maximum number of players the court can accommodate (integer).
+    </ResponseField>
+
+    <ResponseField name="activa" type="boolean" required>
+      Whether the court is currently available for reservations. Defaults to `true` on creation.
+    </ResponseField>
+
+    <ResponseField name="imagen" type="string | null">
+      Absolute URL of a court photo. `null` when no image has been uploaded.
+    </ResponseField>
+
+    <ResponseField name="creadoEn" type="string" required>
+      ISO 8601 timestamp of when the court record was created, e.g. `"2024-03-15T10:00:00.000Z"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET https://your-domain.com/api/canchas
+```
+
+```typescript TypeScript
+const res = await fetch('/api/canchas')
+const { canchas } = await res.json()
+
+// Filter to only bookable courts
+const available = canchas.filter((c: Cancha) => c.activa)
+console.log(available)
+```
+
+</CodeGroup>
+
+---
+
+## POST /api/canchas
+
+Creates a new court record. The authenticated user must have the **ADMIN** or **SUPERADMIN** role. The session is read from the HTTP-only `token` cookie, which is sent automatically on same-origin requests.
+
+<Note>
+  The `token` cookie is set at login and is **HTTP-only**, meaning it cannot be read from JavaScript. It is forwarded automatically by the browser on every same-origin `fetch` or `XMLHttpRequest`.
+</Note>
+
+### Request body
+
+<ParamField body="nombre" type="string" required>
+  Display name for the court. Must be a non-empty string, e.g. `"Cancha Tenis Sur"`.
+</ParamField>
+
+<ParamField body="tipo" type="'FUTBOL' | 'TENIS' | 'BASQUET' | 'VOLLEYBALL'" required>
+  Sport category for this court. Must be exactly one of the four `TipoCancha` enum values:
+
+  | Value        | Sport        |
+  | ------------ | ------------ |
+  | `FUTBOL`     | Football     |
+  | `TENIS`      | Tennis       |
+  | `BASQUET`    | Basketball   |
+  | `VOLLEYBALL` | Volleyball   |
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Optional description of the court's facilities or specific rules. Stored as `null` if omitted.
+</ParamField>
+
+<ParamField body="precioPorHora" type="number" required>
+  Hourly rental price. Accepts a number or numeric string — the API calls `parseFloat()` internally. Example: `35000` or `"35000.50"`.
+</ParamField>
+
+<ParamField body="capacidad" type="number" required>
+  Maximum player capacity. Accepts a number or numeric string — the API calls `parseInt()` internally. Example: `14` or `"14"`.
+</ParamField>
+
+### Response — 201 Created
+
+```json
+{
+  "ok": true,
+  "cancha": {
+    "id": "clx1a2bcd0001efgh5678ijkl",
+    "nombre": "Cancha Tenis Sur",
+    "tipo": "TENIS",
+    "descripcion": null,
+    "precioPorHora": 28000,
+    "capacidad": 4,
+    "activa": true,
+    "imagen": null,
+    "creadoEn": "2024-06-01T14:30:00.000Z"
+  }
+}
+```
+
+<ResponseField name="ok" type="true" required>
+  Always `true` on a successful creation response.
+</ResponseField>
+
+<ResponseField name="cancha" type="Cancha" required>
+  The newly created court object. See the [Cancha fields](#response-fields) listed under `GET /api/canchas` above for the full field descriptions.
+</ResponseField>
+
+### Error responses
+
+| Status | Body                                | Cause                                                   |
+| ------ | ----------------------------------- | ------------------------------------------------------- |
+| `400`  | `{ "error": "Faltan campos requeridos" }` | One or more of `nombre`, `tipo`, `precioPorHora`, or `capacidad` is missing from the request body. |
+| `403`  | `{ "error": "Sin permisos" }`       | No active session, or the authenticated user's role is neither `ADMIN` nor `SUPERADMIN`. |
+| `500`  | `{ "error": "Error interno" }`      | Unexpected server-side error (e.g. database failure).   |
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-domain.com/api/canchas \
+  -H "Content-Type: application/json" \
+  --cookie "token=<your_jwt_token>" \
+  -d '{
+    "nombre": "Cancha Tenis Sur",
+    "tipo": "TENIS",
+    "descripcion": "Cancha de tenis con iluminación nocturna.",
+    "precioPorHora": 28000,
+    "capacidad": 4
+  }'
+```
+
+```typescript TypeScript
+const res = await fetch('/api/canchas', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  // The `token` cookie is sent automatically by the browser
+  body: JSON.stringify({
+    nombre: 'Cancha Tenis Sur',
+    tipo: 'TENIS',
+    descripcion: 'Cancha de tenis con iluminación nocturna.',
+    precioPorHora: 28000,
+    capacidad: 4,
+  }),
+})
+
+if (!res.ok) {
+  const { error } = await res.json()
+  throw new Error(error)
+}
+
+const { ok, cancha } = await res.json()
+console.log('Created:', cancha.id)
+```
+
+</CodeGroup>

@@ -1,0 +1,215 @@
+---
+title: "How Authentication Works in ReservaFácil"
+sidebarTitle: "Authentication"
+description: "ReservaFácil uses JWT tokens stored in HTTP-only cookies. Learn how tokens are issued, verified, and used to protect routes and API endpoints."
+---
+
+ReservaFácil authenticates users with JSON Web Tokens (JWTs) signed using the HS256 algorithm via the `jose` library. Rather than storing tokens in `localStorage` (which is vulnerable to XSS), the platform sets the JWT in an HTTP-only cookie so that the browser attaches it automatically on every request without any client-side JavaScript involvement. The Next.js middleware layer then verifies the token on every protected-route request before the page or API handler even runs.
+
+## Authentication Flow
+
+<Steps>
+  <Step title="Register or Log In">
+    The client sends a `POST` request to `/api/auth/register` (with `nombre`, `email`, `password`) or `/api/auth/login` (with `email`, `password`). The API validates the credentials — checking the database for the user record, verifying `activo: true`, and comparing the submitted password against the stored bcrypt hash.
+  </Step>
+  <Step title="Token Issued and Set in Cookie">
+    On success, the API calls `signToken()` to produce a signed JWT containing the user's `id`, `email`, `nombre`, and `rol`. The token is written into an HTTP-only cookie named `token` with a 7-day expiry. The JSON response also returns the public user object (without the password).
+  </Step>
+  <Step title="Browser Sends Cookie Automatically">
+    Every subsequent request the browser makes to the same origin (including page navigations and `fetch` calls) automatically includes the `token` cookie in the `Cookie` header. No manual token management is needed in client code.
+  </Step>
+  <Step title="Middleware Verifies the Token">
+    For any request matching `/dashboard/:path*`, `/admin/:path*`, or `/superadmin/:path*`, the Next.js middleware reads the `token` cookie, calls `verifyToken()`, and checks whether the decoded role is permitted on that route. Unauthenticated or unauthorised requests are redirected before the page renders.
+  </Step>
+  <Step title="Session Available in Server Components">
+    Inside Server Components and Route Handlers, call `getSession()` to retrieve the decoded JWT payload from the cookie store. This gives you the full `JWTPayload` (id, email, nombre, rol) without any additional database round-trip.
+  </Step>
+</Steps>
+
+## JWT Payload
+
+Every token encodes the following claims, defined in `lib/auth.ts`:
+
+```typescript
+export interface JWTPayload {
+  id: string
+  email: string
+  nombre: string
+  rol: 'USUARIO' | 'ADMIN' | 'SUPERADMIN'
+}
+```
+
+These four fields are all you need for authorisation decisions in middleware and API handlers — the role is embedded directly in the token, so no database lookup is required to check permissions on a request.
+
+## Token Signing and Verification
+
+Both functions live in `lib/auth.ts` and use the `jose` library with an HS256 signing secret read from the `JWT_SECRET` environment variable:
+
+```typescript
+import { SignJWT, jwtVerify } from 'jose'
+
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
+
+export async function signToken(payload: JWTPayload): Promise<string> {
+  return await new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('7d')
+    .sign(SECRET)
+}
+
+export async function verifyToken(token: string): Promise<JWTPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, SECRET)
+    return payload as unknown as JWTPayload
+  } catch {
+    return null
+  }
+}
+```
+
+- `signToken` — Creates and signs a new JWT from a `JWTPayload`. Sets the algorithm to `HS256` and the expiry to `7d`. Called by the login and register route handlers immediately after validating credentials.
+- `verifyToken` — Decodes and verifies an existing token string. Returns the `JWTPayload` on success, or `null` if the token is missing, malformed, or expired. Used by both the middleware and `getSession()`.
+
+## Session Helpers
+
+`lib/session.ts` provides three server-side helpers that build on `verifyToken`:
+
+```typescript
+import { cookies } from 'next/headers'
+import { verifyToken, JWTPayload } from './auth'
+
+// Read the session from the cookie store — returns null if unauthenticated
+export async function getSession(): Promise<JWTPayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get('token')?.value
+  if (!token) return null
+  return await verifyToken(token)
+}
+
+// Like getSession(), but throws if the user is not authenticated
+export async function requireAuth(): Promise<JWTPayload> {
+  const session = await getSession()
+  if (!session) throw new Error('No autenticado')
+  return session
+}
+
+// Like requireAuth(), but also enforces a role allowlist
+export async function requireRole(
+  roles: Array<'USUARIO' | 'ADMIN' | 'SUPERADMIN'>
+): Promise<JWTPayload> {
+  const session = await requireAuth()
+  if (!roles.includes(session.rol)) throw new Error('Sin permisos')
+  return session
+}
+```
+
+### Usage Examples
+
+**Retrieve the current user in a Server Component:**
+
+```typescript
+import { getSession } from '@/lib/session'
+
+export default async function DashboardPage() {
+  const session = await getSession()
+  if (!session) redirect('/login')
+
+  return <h1>Bienvenido, {session.nombre}</h1>
+}
+```
+
+**Protect an API route — authentication only:**
+
+```typescript
+import { requireAuth } from '@/lib/session'
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  const session = await requireAuth()
+  // session.id, session.email, session.rol are all available
+  return NextResponse.json({ usuario: session })
+}
+```
+
+**Protect an API route — specific roles only:**
+
+```typescript
+import { requireRole } from '@/lib/session'
+import { NextResponse } from 'next/server'
+
+export async function DELETE(req: Request) {
+  // Throws with "Sin permisos" if the caller is not ADMIN or SUPERADMIN
+  const session = await requireRole(['ADMIN', 'SUPERADMIN'])
+  // proceed with the delete operation...
+  return NextResponse.json({ ok: true })
+}
+```
+
+## Cookie Security Attributes
+
+The `token` cookie is set with the following attributes in both `/api/auth/login` and `/api/auth/register`:
+
+| Attribute  | Value                                  | Purpose                                                        |
+| ---------- | -------------------------------------- | -------------------------------------------------------------- |
+| `httpOnly` | `true`                                 | Prevents JavaScript from reading the cookie.                   |
+| `secure`   | `true` in production, `false` in dev   | Ensures the cookie is only sent over HTTPS in production.      |
+| `sameSite` | `lax`                                  | Sent on same-site requests and top-level cross-site navigations (e.g. following a link), but not on cross-origin `fetch`. Provides CSRF protection. |
+| `maxAge`   | `60 * 60 * 24 * 7` (604 800 seconds)   | Cookie and token both expire after 7 days.                     |
+| `path`     | `/`                                    | Cookie is sent with every request to the domain.              |
+
+<Note>
+  Because the `token` cookie is `httpOnly`, **no client-side JavaScript can read it** — including `document.cookie` and any third-party scripts. This protects the token from XSS attacks. To check authentication state on the client side, call a lightweight API endpoint (e.g. `GET /api/auth/me`) that reads the server-side session and returns the public user object.
+</Note>
+
+## Checking Auth in API Routes
+
+The standard pattern for reading the session in a Next.js Route Handler is:
+
+```typescript
+import { getSession } from '@/lib/session'
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  const session = await getSession()
+
+  if (!session) {
+    return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  }
+
+  // Use session.id, session.rol, etc.
+  return NextResponse.json({ ok: true, usuario: session })
+}
+```
+
+For stricter enforcement, use `requireAuth()` or `requireRole()` instead of the manual null-check — they throw immediately, and you can catch the error to return a consistent 401/403 response.
+
+## Middleware Route Protection
+
+The Next.js middleware (`middleware.ts`) intercepts every request to the protected route prefixes defined in `config.matcher` and enforces token validity and role checks before the request reaches any page or layout:
+
+```typescript
+export const config = {
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/superadmin/:path*'],
+}
+```
+
+The route-to-role map checked by the middleware:
+
+```typescript
+const RUTAS_PROTEGIDAS: Record<string, string[]> = {
+  '/dashboard':  ['USUARIO', 'ADMIN', 'SUPERADMIN'],
+  '/admin':      ['ADMIN', 'SUPERADMIN'],
+  '/superadmin': ['SUPERADMIN'],
+}
+```
+
+**Decision tree for every intercepted request:**
+
+1. No `token` cookie → redirect to `/login`.
+2. Token present but invalid/expired → delete the `token` cookie, redirect to `/login`.
+3. Token valid, but the user's role is not in the allowed list for the route → redirect to the user's own dashboard (`getDashboardPorRol`).
+4. Token valid and role is permitted → pass the request through to the page.
+
+<Tip>
+  The middleware runs on the Edge Runtime, so `verifyToken` must be fully async and cannot use any Node.js-only APIs. The `jose` library satisfies this requirement — it is designed for Web Crypto API environments and works in both Edge and Node.js runtimes.
+</Tip>

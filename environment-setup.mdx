@@ -1,0 +1,101 @@
+---
+title: "Configure ReservaFácil Environment Variables"
+sidebarTitle: "Environment"
+description: "Set up the three required environment variables for ReservaFácil: DATABASE_URL for PostgreSQL, JWT_SECRET for token signing, and NEXTAUTH_URL for production."
+---
+
+ReservaFácil requires three environment variables to run. These control how the application connects to its PostgreSQL database, how it signs and verifies JWT authentication tokens, and what public URL it considers canonical in production. All three are defined in `.env.example` at the root of the repository — copy this file to `.env.local` for local development before starting the server.
+
+## Example File
+
+The full contents of `.env.example` as shipped in the repository:
+
+```bash
+# Base de datos PostgreSQL (usar Neon.tech gratis)
+DATABASE_URL="postgresql://user:password@host:5432/reservafacil?sslmode=require"
+
+# JWT Secret (string aleatorio largo)
+JWT_SECRET="tu_secreto_super_largo_aqui_minimo_32_caracteres"
+
+# URL de producción (Vercel te la da)
+NEXTAUTH_URL="https://tu-proyecto.vercel.app"
+```
+
+## Variable Reference
+
+<ParamField path="DATABASE_URL" type="string" required>
+  The full PostgreSQL connection string used by Prisma to connect to your database. Must follow the format:
+
+  ```
+  postgresql://user:password@host:5432/reservafacil?sslmode=require
+  ```
+
+  Replace `user`, `password`, `host`, and the database name (`reservafacil`) with your actual credentials. The `?sslmode=require` flag is needed for most hosted PostgreSQL providers (including Neon, Supabase, and Railway) and should be kept in place for production use. For a local PostgreSQL instance without SSL you can omit it:
+
+  ```
+  postgresql://postgres:mypassword@localhost:5432/reservafacil
+  ```
+</ParamField>
+
+<ParamField path="JWT_SECRET" type="string" required>
+  A secret string used to sign and verify JSON Web Tokens with the **HS256** algorithm via the `jose` library. This value must be **at least 32 characters** long. Tokens are stored in an HTTP-only cookie named `token` with a 7-day expiry — anyone who obtains this secret can forge valid tokens, so treat it like a password.
+
+  ```
+  JWT_SECRET="replace-this-with-a-real-random-secret-value"
+  ```
+
+  See [Generating a Secure JWT Secret](#generating-a-secure-jwt-secret) below for a one-liner to produce a cryptographically safe value.
+</ParamField>
+
+<ParamField path="NEXTAUTH_URL" type="string" required>
+  The full canonical public URL of your deployed application, including the `https://` scheme and no trailing slash. This is used to construct absolute URLs in production contexts.
+
+  ```
+  NEXTAUTH_URL="https://your-project.vercel.app"
+  ```
+
+  This variable is **not required for local development** — you can leave the placeholder value in `.env.local` and the app will function correctly at `http://localhost:3000`. It becomes required when deploying to a hosting provider such as Vercel.
+</ParamField>
+
+## Generating a Secure JWT Secret
+
+Never use a short or guessable string as your `JWT_SECRET`. Use `openssl` to generate a cryptographically random 32-byte value encoded as base64 (44 characters):
+
+```bash
+openssl rand -base64 32
+```
+
+Copy the output directly into your `.env.local`:
+
+```bash
+JWT_SECRET="kQ3gF8vZpLmN2xRtYuWoJ5hDcEiAsBqT7nK1fXwOvMy="
+```
+
+If `openssl` is not available on your system, Node.js works equally well:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+## Local vs. Production Environment Files
+
+ReservaFácil follows the standard Next.js convention for environment files:
+
+| File            | When it's loaded                          | Commit to Git? |
+| --------------- | ----------------------------------------- | -------------- |
+| `.env.example`  | Never loaded automatically — reference only | ✅ Yes         |
+| `.env.local`    | Local development (`next dev`)            | ❌ No          |
+| `.env`          | All environments (fallback)               | ❌ No          |
+
+For **local development**, populate `.env.local`:
+
+```bash
+cp .env.example .env.local
+# then edit .env.local with your real values
+```
+
+For **production on Vercel**, do not upload a `.env.local` file. Instead, set each variable in the Vercel project dashboard under **Settings → Environment Variables**. Vercel injects them securely at build and runtime without exposing them in your repository.
+
+<Warning>
+  Never commit `.env.local` or any file containing real credentials to version control. The `.gitignore` included in the repository already excludes `.env.local`, but double-check before pushing — a leaked `JWT_SECRET` or `DATABASE_URL` grants full access to your authentication system and database. If a secret is ever accidentally exposed, rotate it immediately by generating a new value and redeploying.
+</Warning>

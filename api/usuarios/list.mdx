@@ -1,0 +1,131 @@
+---
+title: "List All Users — SUPERADMIN Endpoint"
+sidebarTitle: "GET /usuarios"
+description: "GET /api/usuarios returns all registered users with their role, active status, and total reservation count. Restricted to SUPERADMIN callers only."
+---
+
+The `GET /api/usuarios` endpoint returns the complete list of registered users in the platform, along with each user's role, account status, and a count of their total reservations. This endpoint is exclusively available to superadmins and is intended for user management dashboards and administrative tooling.
+
+---
+
+## GET /api/usuarios
+
+Returns all `Usuario` records ordered by registration date descending (most recently created first). Each record includes a computed `_count.reservas` field reflecting the total number of reservations associated with that user.
+
+**Requires `SUPERADMIN` role.** Requests from users with `ADMIN` or `USUARIO` roles — or unauthenticated requests — are rejected immediately with `403`.
+
+<Note>
+  Password hashes are never included in the response. The query uses an explicit `select` block that omits the `password` field entirely.
+</Note>
+
+### Response `200`
+
+```json
+{
+  "usuarios": [
+    {
+      "id": "clx9usr1abc2def",
+      "nombre": "Ana López",
+      "email": "ana@example.com",
+      "rol": "USUARIO",
+      "activo": true,
+      "creadoEn": "2024-01-01T09:00:00.000Z",
+      "_count": {
+        "reservas": 5
+      }
+    },
+    {
+      "id": "clx9usr2ghi3jkl",
+      "nombre": "Carlos Ruiz",
+      "email": "carlos@example.com",
+      "rol": "ADMIN",
+      "activo": false,
+      "creadoEn": "2023-12-15T14:30:00.000Z",
+      "_count": {
+        "reservas": 12
+      }
+    }
+  ]
+}
+```
+
+<ResponseField name="usuarios" type="Usuario[]" required>
+  Array of user objects ordered by `creadoEn` descending.
+</ResponseField>
+
+<ResponseField name="usuarios[].id" type="string">
+  CUID identifier for the user record.
+</ResponseField>
+
+<ResponseField name="usuarios[].nombre" type="string">
+  Full display name of the user.
+</ResponseField>
+
+<ResponseField name="usuarios[].email" type="string">
+  Unique email address. Used for login and as a human-readable identifier.
+</ResponseField>
+
+<ResponseField name="usuarios[].rol" type="enum">
+  Role assigned to the user. One of: `USUARIO`, `ADMIN`, `SUPERADMIN`.
+</ResponseField>
+
+<ResponseField name="usuarios[].activo" type="boolean">
+  Whether the account is currently active. Inactive accounts (`false`) cannot log in.
+</ResponseField>
+
+<ResponseField name="usuarios[].creadoEn" type="string (ISO 8601)">
+  Timestamp of when the account was created. The list is sorted by this field, descending.
+</ResponseField>
+
+<ResponseField name="usuarios[]._count.reservas" type="number">
+  Total number of reservations created by this user across all statuses and dates.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `403` | `{ "error": "Sin permisos" }` | Caller is not authenticated or does not have `SUPERADMIN` role. |
+
+---
+
+## Examples
+
+<CodeGroup>
+
+```bash List all users (curl)
+curl https://your-domain.com/api/usuarios \
+  -H "Cookie: session=<superadmin-session-cookie>"
+```
+
+```typescript List all users (TypeScript)
+const res = await fetch("/api/usuarios", {
+  credentials: "include",
+});
+
+if (res.status === 403) {
+  throw new Error("SUPERADMIN role required");
+}
+
+if (!res.ok) {
+  throw new Error("Unexpected error fetching users");
+}
+
+const { usuarios } = await res.json();
+
+// Example: find all inactive users
+const inactivos = usuarios.filter(
+  (u: { activo: boolean }) => !u.activo
+);
+console.log(`${inactivos.length} inactive user(s)`);
+
+// Example: find the most active booker
+const topBooker = usuarios.reduce(
+  (best: { _count: { reservas: number } }, u: { _count: { reservas: number } }) =>
+    u._count.reservas > best._count.reservas ? u : best,
+  usuarios[0]
+);
+console.log(topBooker.nombre, topBooker._count.reservas);
+```
+
+</CodeGroup>

@@ -1,0 +1,92 @@
+---
+title: "View and Manage Your Reservations"
+sidebarTitle: "My Reservations"
+description: "Track your court bookings in ReservaFácil — view status, cancel pending reservations, and understand the reservation lifecycle from pending to completed."
+---
+
+Every booking you make in ReservaFácil is stored in your personal reservations history. The **My Reservations** section gives you a full audit trail of past and upcoming bookings, a clear view of each reservation's current status, and a one-click cancel option when plans change.
+
+## Dashboard Summary
+
+Before diving into the full list, the main user dashboard at **[/dashboard](http://localhost:3000/dashboard)** shows three stat cards so you can gauge your activity at a glance:
+
+<CardGroup cols={3}>
+  <Card title="Total Reservas" icon="calendar-days">
+    The cumulative count of every reservation you have ever made, regardless of status.
+  </Card>
+  <Card title="Confirmadas" icon="circle-check">
+    How many of your reservations among the latest five have been approved by an admin and are ready to play.
+  </Card>
+  <Card title="Canchas Disponibles" icon="house">
+    The current number of active courts on the platform — a quick indicator of how much choice you have for your next booking.
+  </Card>
+</CardGroup>
+
+Below the stats, a **Últimas reservas** list shows your five most recent bookings with court name, date, time slot, total amount, and a status badge so you can spot anything needing attention without navigating away.
+
+## Reservations Table
+
+Navigate to **[/dashboard/reservas](http://localhost:3000/dashboard/reservas)** to see your **complete** reservation history ordered by date (most recent first). The table contains the following columns:
+
+| Column | Description |
+|--------|-------------|
+| **Cancha** | Name of the court you booked |
+| **Fecha** | Date of the session in `DD/MM/YYYY` format |
+| **Horario** | Time window, e.g. `10:00 - 12:00` |
+| **Total** | Amount charged in soles, e.g. `S/ 100` |
+| **Estado** | Coloured status badge (see lifecycle below) |
+| **Acción** | Cancel button — only visible for `PENDIENTE` reservations |
+
+## Reservation Status Lifecycle
+
+A reservation moves through a defined set of statuses from creation to completion. Understanding this flow helps you know when you can act and when you need to contact an admin.
+
+```
+PENDIENTE ──► CONFIRMADA ──► COMPLETADA
+    │
+    └──────────────────────► CANCELADA
+```
+
+<CardGroup cols={2}>
+  <Card title="PENDIENTE" icon="clock">
+    **Yellow badge.** The reservation has been submitted and is waiting for admin review. The time slot is already blocked for other users.
+  </Card>
+  <Card title="CONFIRMADA" icon="circle-check">
+    **Green badge.** An admin has approved the booking. Your court is reserved and ready for the scheduled date and time.
+  </Card>
+  <Card title="COMPLETADA" icon="flag-checkered">
+    **Blue badge.** The session has taken place and the reservation is closed. No further changes are possible.
+  </Card>
+  <Card title="CANCELADA" icon="circle-xmark">
+    **Red badge.** The reservation was cancelled — either by you before confirmation, or by an admin at any point. The slot is freed for others.
+  </Card>
+</CardGroup>
+
+## Cancelling a Reservation
+
+You can cancel a reservation yourself only while it is in **PENDIENTE** status. A **Cancelar** button appears in the action column of any pending row.
+
+<Steps>
+  <Step title="Locate the PENDIENTE reservation">
+    Scroll through the table at `/dashboard/reservas` and find the booking you want to cancel. Only rows with a yellow **PENDIENTE** badge show the cancel button.
+  </Step>
+  <Step title="Click Cancelar">
+    Clicking the button opens a browser confirmation dialog: *"¿Cancelar esta reserva?"* Confirm to proceed.
+  </Step>
+  <Step title="Status updates to CANCELADA">
+    The `CancelarReservaBtn` component sends a `PATCH` request to the reservations API:
+
+    ```http
+    PATCH /api/reservas/{id}
+    Content-Type: application/json
+
+    { "estado": "CANCELADA" }
+    ```
+
+    The page refreshes and the row's badge changes from yellow **PENDIENTE** to red **CANCELADA**.
+  </Step>
+</Steps>
+
+<Warning>
+  Once a reservation moves to **CONFIRMADA** the self-cancel button is no longer shown. You must contact an admin directly to request a cancellation — they can update the status from the admin panel at `/admin/reservas`.
+</Warning>

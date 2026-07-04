@@ -1,0 +1,136 @@
+---
+title: "Manage Courts and Reservations as an Admin"
+sidebarTitle: "Admin Panel"
+description: "Admin guide for ReservaFácil: confirm or cancel user bookings, create and edit courts, monitor pending reservations, and track revenue from the admin dashboard."
+---
+
+Users with the **ADMIN** role gain access to a dedicated management area at **[/admin](http://localhost:3000/admin)**. From here, admins can monitor all platform activity, approve or cancel any reservation, and maintain the catalogue of sports courts — without needing superadmin privileges.
+
+## Admin Dashboard Overview
+
+The dashboard at `/admin` provides an at-a-glance summary of platform health through four stat cards:
+
+<CardGroup cols={2}>
+  <Card title="Total Reservas" icon="calendar-days">
+    The total count of all reservations ever made on the platform, across all statuses and users.
+  </Card>
+  <Card title="Pendientes" icon="clock">
+    Reservations currently awaiting admin review. A high number here signals a backlog that needs attention.
+  </Card>
+  <Card title="Canchas Activas" icon="house">
+    The number of courts currently marked as active and bookable by regular users.
+  </Card>
+  <Card title="Ingresos (S/)" icon="sack-dollar">
+    The sum of `total` across all **CONFIRMADA** reservations — a real-time revenue figure in Peruvian soles.
+  </Card>
+</CardGroup>
+
+Below the stat cards, a **Reservas recientes** table lists the 8 most recently created reservations with user name, court name, date, total amount, and status badge. A **Ver todas →** link leads to the full reservation management page.
+
+## Managing Reservations
+
+Navigate to **[/admin/reservas](http://localhost:3000/admin/reservas)** to see every reservation on the platform ordered by creation date. The table columns are:
+
+| Column | Description |
+|--------|-------------|
+| **Usuario** | Booking user's full name and email address |
+| **Cancha** | Name of the reserved court |
+| **Fecha / Hora** | Date and time window of the session |
+| **Total** | Booking amount in soles |
+| **Estado** | Coloured status badge |
+| **Acciones** | Action buttons rendered by `GestionReservaBtn` |
+
+### Action Buttons
+
+The `GestionReservaBtn` component renders different controls depending on the reservation's current status:
+
+<CardGroup cols={3}>
+  <Card title="PENDIENTE" icon="clock">
+    Two buttons appear: **✅ Confirmar** promotes the reservation to `CONFIRMADA`, and **❌ Cancelar** moves it directly to `CANCELADA`. Both send a `PATCH /api/reservas/{id}` request with the target status.
+  </Card>
+  <Card title="CONFIRMADA" icon="circle-check">
+    A single **🏁 Completar** button is shown. Clicking it marks the reservation as `COMPLETADA` once the session has taken place.
+  </Card>
+  <Card title="CANCELADA / COMPLETADA" icon="ban">
+    No action buttons are rendered. The column shows **Sin acciones** to indicate the reservation is in a terminal state.
+  </Card>
+</CardGroup>
+
+Each state transition is sent as:
+
+```http
+PATCH /api/reservas/{id}
+Content-Type: application/json
+
+{ "estado": "CONFIRMADA" }   // or "CANCELADA" or "COMPLETADA"
+```
+
+## Court Management
+
+Navigate to **[/admin/canchas](http://localhost:3000/admin/canchas)** to access the full `GestionCanchasPanel`. This panel lists every court (active and inactive) in a grid and provides controls to create, edit, and toggle their availability.
+
+### Creating a New Court
+
+Click the **+ Nueva Cancha** button to open the creation modal. Fill in the following fields:
+
+<Steps>
+  <Step title="Nombre (required)">
+    A human-readable name for the court, e.g. `"Cancha Fútbol 1"` or `"Pista de Tenis Norte"`. This name appears on `CanchaCard` tiles and in all reservation records.
+  </Step>
+  <Step title="Tipo (required)">
+    Select the sport type from the dropdown. The four available options map directly to the Prisma enum values:
+
+    | Value | Sport | Emoji |
+    |-------|-------|-------|
+    | `FUTBOL` | Football | ⚽ |
+    | `TENIS` | Tennis | 🎾 |
+    | `BASQUET` | Basketball | 🏀 |
+    | `VOLLEYBALL` | Volleyball | 🏐 |
+  </Step>
+  <Step title="Precio/hora (required)">
+    Set the hourly rate in soles (S/). This value is used by `ReservaForm` to calculate the booking total automatically.
+
+    ```text
+    Field: precioPorHora
+    Type: number (min: 1)
+    Example: 50
+    ```
+  </Step>
+  <Step title="Capacidad (required)">
+    Maximum number of persons the court can accommodate. Displayed on the `CanchaCard` to help users decide whether their group fits.
+
+    ```text
+    Field: capacidad
+    Type: integer (min: 1)
+    Example: 10
+    ```
+  </Step>
+  <Step title="Descripción (optional)">
+    Free-text description covering surface type, lighting, amenities, etc. Shown in smaller text on the court card.
+  </Step>
+  <Step title="Save">
+    Click **Crear cancha**. The panel sends a `POST /api/canchas` request — only `ADMIN` and `SUPERADMIN` roles are permitted by the API. On success, the new court appears in the grid immediately.
+
+    ```json
+    {
+      "nombre": "Cancha Fútbol 1",
+      "tipo": "FUTBOL",
+      "descripcion": "Césped sintético, iluminación LED",
+      "precioPorHora": 50,
+      "capacidad": 10
+    }
+    ```
+  </Step>
+</Steps>
+
+### Editing an Existing Court
+
+Click the **✏️ Editar** button on any court card to open the same modal pre-populated with the court's current values. Make your changes and click **Guardar cambios** — the panel sends a `PUT /api/canchas/{id}` request with the updated fields.
+
+### Toggling a Court Active / Inactive
+
+Each court card shows a lock button (**🔒** when active, **🔓** when inactive). Clicking it flips the `activa` flag via `PUT /api/canchas/{id}`. Inactive courts are hidden from the user-facing `/dashboard/canchas` grid and cannot be booked until reactivated.
+
+<Note>
+  Only **SUPERADMIN** users can permanently delete a court. Admins can deactivate courts using the toggle, which hides them from users while preserving all historical reservation data linked to that court.
+</Note>

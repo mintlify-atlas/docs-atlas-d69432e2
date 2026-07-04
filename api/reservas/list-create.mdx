@@ -1,0 +1,255 @@
+---
+title: "List and Create Court Reservations"
+sidebarTitle: "List & Create"
+description: "GET /api/reservas lists reservations (own for users, all for admins). POST /api/reservas creates a booking with automatic time-slot conflict detection."
+---
+
+The `/api/reservas` endpoint lets authenticated users view and create court reservations. Role-based access controls determine the scope of what each caller can see: regular users retrieve only their own bookings, while admins and superadmins receive the full reservation list. New bookings are validated against both court availability and existing time-slot conflicts before being persisted.
+
+---
+
+## GET /api/reservas
+
+Returns a list of reservations ordered by date descending. The response shape varies by role: `USUARIO` receives only their own reservations with court details, while `ADMIN` and `SUPERADMIN` receive all reservations including the associated user on each record.
+
+**Requires authentication.** Returns `401` if no valid session is present.
+
+### Role-based filtering
+
+<Note>
+  Regular users (`USUARIO` role) only ever see their own reservations — filtered internally by `usuarioId`. There is no query parameter to override this; the server enforces it based on the session. Admins and superadmins always receive all reservations.
+</Note>
+
+### Response `200`
+
+```json
+{
+  "reservas": [
+    {
+      "id": "clx1abc2def3ghi",
+      "usuarioId": "clx9usr1abc2def",
+      "canchaId": "clx5crt1abc2def",
+      "fecha": "2024-01-15T00:00:00.000Z",
+      "horaInicio": "09:00",
+      "horaFin": "10:00",
+      "estado": "PENDIENTE",
+      "total": 50.00,
+      "notas": null,
+      "creadoEn": "2024-01-14T12:00:00.000Z",
+      "cancha": { "id": "clx5crt1abc2def", "nombre": "Cancha A", "tipo": "FUTBOL" },
+      "usuario": { "id": "clx9usr1abc2def", "nombre": "Ana López", "email": "ana@example.com" }
+    }
+  ]
+}
+```
+
+<ResponseField name="reservas" type="Reserva[]" required>
+  Array of reservation objects. Always includes the nested `cancha` object. The `usuario` field is only populated for `ADMIN` and `SUPERADMIN` callers.
+</ResponseField>
+
+<ResponseField name="reservas[].id" type="string">
+  CUID identifier for the reservation.
+</ResponseField>
+
+<ResponseField name="reservas[].usuarioId" type="string">
+  ID of the user who created the reservation.
+</ResponseField>
+
+<ResponseField name="reservas[].canchaId" type="string">
+  ID of the court being reserved.
+</ResponseField>
+
+<ResponseField name="reservas[].fecha" type="string (ISO 8601)">
+  The date of the reservation, stored as a UTC midnight timestamp.
+</ResponseField>
+
+<ResponseField name="reservas[].horaInicio" type="string">
+  Start time of the booking slot in `HH:MM` 24-hour format (e.g. `"09:00"`).
+</ResponseField>
+
+<ResponseField name="reservas[].horaFin" type="string">
+  End time of the booking slot in `HH:MM` 24-hour format (e.g. `"10:00"`).
+</ResponseField>
+
+<ResponseField name="reservas[].estado" type="enum">
+  Current status of the reservation. One of: `PENDIENTE`, `CONFIRMADA`, `CANCELADA`, `COMPLETADA`.
+</ResponseField>
+
+<ResponseField name="reservas[].total" type="number">
+  Total cost of the reservation as a floating-point number (e.g. `50.00`). Defaults to `0` if not provided at creation.
+</ResponseField>
+
+<ResponseField name="reservas[].notas" type="string | null">
+  Optional free-text notes attached to the reservation.
+</ResponseField>
+
+<ResponseField name="reservas[].creadoEn" type="string (ISO 8601)">
+  Timestamp of when the reservation record was created.
+</ResponseField>
+
+<ResponseField name="reservas[].cancha" type="object">
+  Nested Cancha (court) object. Always present.
+</ResponseField>
+
+<ResponseField name="reservas[].usuario" type="object | undefined">
+  Nested Usuario object. Only present when the caller has `ADMIN` or `SUPERADMIN` role.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `401` | `{ "error": "No autenticado" }` | No valid session cookie / token. |
+
+---
+
+## POST /api/reservas
+
+Creates a new reservation for the authenticated user. The server automatically validates that the court exists and is active, and that the requested time window does not overlap with any existing `PENDIENTE` or `CONFIRMADA` booking for that court on the same date.
+
+**Requires authentication.** The `usuarioId` is taken directly from the session — it cannot be set in the request body.
+
+### Request body
+
+<ParamField body="canchaId" type="string" required>
+  The CUID of the court to reserve. Must match an existing, active (`activa: true`) `Cancha` record.
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  The date for the reservation as an ISO 8601 string (e.g. `"2024-01-15T00:00:00.000Z"`). Stored as a UTC `DateTime`.
+</ParamField>
+
+<ParamField body="horaInicio" type="string" required>
+  Start time of the slot in `HH:MM` 24-hour format (e.g. `"09:00"`).
+</ParamField>
+
+<ParamField body="horaFin" type="string" required>
+  End time of the slot in `HH:MM` 24-hour format (e.g. `"10:00"`). Must be later than `horaInicio`.
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Optional free-text notes for the reservation (e.g. special requests).
+</ParamField>
+
+<ParamField body="total" type="number">
+  Total price for the booking. If omitted, the reservation is created with `total: 0`.
+</ParamField>
+
+### Conflict detection logic
+
+Before creating the reservation, the API queries for any existing reservation on the same court (`canchaId`) and date (`fecha`) whose status is `PENDIENTE` or `CONFIRMADA` and whose time window overlaps the requested slot. Two time windows overlap when:
+
+```
+existingHoraInicio < requested.horaFin  AND  existingHoraFin > requested.horaInicio
+```
+
+This correctly handles partial overlaps, fully contained slots, and exact matches. If a conflict is found, the request is rejected with `409`.
+
+All new reservations are created with `estado: "PENDIENTE"` regardless of the caller's role.
+
+### Response `201`
+
+```json
+{
+  "ok": true,
+  "reserva": {
+    "id": "clx1abc2def3ghi",
+    "usuarioId": "clx9usr1abc2def",
+    "canchaId": "clx5crt1abc2def",
+    "fecha": "2024-01-15T00:00:00.000Z",
+    "horaInicio": "09:00",
+    "horaFin": "10:00",
+    "estado": "PENDIENTE",
+    "total": 50.00,
+    "notas": "Traer balón",
+    "creadoEn": "2024-01-14T12:00:00.000Z",
+    "cancha": { "id": "clx5crt1abc2def", "nombre": "Cancha A", "tipo": "FUTBOL" }
+  }
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="reserva" type="Reserva">
+  The newly created reservation object. Includes the nested `cancha` object. The `usuario` field is **not** included in the POST response.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400` | `{ "error": "Faltan campos requeridos" }` | One or more of `canchaId`, `fecha`, `horaInicio`, or `horaFin` is missing. |
+| `400` | `{ "error": "Cancha no disponible" }` | The court does not exist or has `activa: false`. |
+| `401` | `{ "error": "No autenticado" }` | Request has no valid session. |
+| `409` | `{ "error": "Ya existe una reserva en ese horario" }` | The time slot overlaps an active (`PENDIENTE` or `CONFIRMADA`) booking on the same court and date. |
+| `500` | `{ "error": "Error interno" }` | Unexpected server-side error. |
+
+---
+
+## Examples
+
+<CodeGroup>
+
+```bash List reservations (curl)
+# As a regular user — returns only your own reservations
+curl https://your-domain.com/api/reservas \
+  -H "Cookie: session=<your-session-cookie>"
+```
+
+```bash Create a reservation (curl)
+curl -X POST https://your-domain.com/api/reservas \
+  -H "Cookie: session=<your-session-cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "canchaId": "clx5crt1abc2def",
+    "fecha": "2024-01-15T00:00:00.000Z",
+    "horaInicio": "09:00",
+    "horaFin": "10:00",
+    "notas": "Traer balón",
+    "total": 50.00
+  }'
+```
+
+```typescript List reservations (TypeScript)
+const res = await fetch("/api/reservas", {
+  credentials: "include",
+});
+
+if (!res.ok) {
+  const err = await res.json();
+  throw new Error(err.error);
+}
+
+const { reservas } = await res.json();
+console.log(reservas);
+```
+
+```typescript Create a reservation (TypeScript)
+const res = await fetch("/api/reservas", {
+  method: "POST",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    canchaId: "clx5crt1abc2def",
+    fecha: "2024-01-15T00:00:00.000Z",
+    horaInicio: "09:00",
+    horaFin: "10:00",
+    notas: "Traer balón",
+    total: 50.00,
+  }),
+});
+
+if (res.status === 409) {
+  console.error("Time slot already taken");
+} else if (!res.ok) {
+  const err = await res.json();
+  throw new Error(err.error);
+}
+
+const { ok, reserva } = await res.json();
+console.log(reserva.id);
+```
+
+</CodeGroup>

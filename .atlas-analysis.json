@@ -1,23 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "ReservaFácil",
+  "projectType": "saas",
+  "projectName": "ReservaFácil",
+  "projectDescription": "A full-stack sports court booking platform (CanchaYA) built with Next.js, Prisma, and PostgreSQL, featuring role-based access for users, admins, and super admins.",
   "theme": "almond",
-  "colors": {
-    "primary": "#16a34a",
-    "light": "#bbf7d0",
-    "dark": "#14532d"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/Nyverie/reservafacil"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/Nyverie/reservafacil"
-    }
-  },
+  "primaryColor": "#16a34a",
+  "lightColor": "#bbf7d0",
+  "darkColor": "#14532d",
   "navigation": {
     "tabs": [
       {
@@ -93,5 +81,34 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Role-based access control with USUARIO, ADMIN, and SUPERADMIN roles",
+    "Court (cancha) management supporting football, tennis, basketball, and volleyball",
+    "Booking system with conflict detection and time-slot validation",
+    "JWT authentication via HTTP-only cookies",
+    "Admin dashboard for confirming or cancelling reservations",
+    "Superadmin panel with global reports, user management, and role assignment",
+    "PostgreSQL database with Prisma ORM",
+    "Next.js App Router with server-side rendering"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/register",
+    "POST /api/auth/logout",
+    "GET /api/auth/me",
+    "GET /api/canchas",
+    "POST /api/canchas",
+    "GET /api/canchas/[id]",
+    "PUT /api/canchas/[id]",
+    "DELETE /api/canchas/[id]",
+    "GET /api/reservas",
+    "POST /api/reservas",
+    "GET /api/reservas/[id]",
+    "PATCH /api/reservas/[id]",
+    "DELETE /api/reservas/[id]",
+    "GET /api/usuarios",
+    "PATCH /api/usuarios/[id]",
+    "DELETE /api/usuarios/[id]"
+  ]
 }

@@ -1,0 +1,163 @@
+---
+title: "System Administration with the SuperAdmin Panel"
+sidebarTitle: "SuperAdmin Panel"
+description: "SuperAdmin guide for ReservaFácil: manage all users and roles, delete courts, access system-wide revenue reports, and monitor platform activity."
+---
+
+The **SUPERADMIN** role sits at the top of ReservaFácil's permission hierarchy. In addition to all admin capabilities, a superadmin can permanently delete courts, promote or demote any user's role, deactivate accounts, and access the full global reporting suite — all from the dedicated `/superadmin` area.
+
+## SuperAdmin Dashboard
+
+The dashboard at `/superadmin` greets you with four platform-wide stat cards and three quick-action navigation tiles.
+
+### Stat Cards
+
+<CardGroup cols={2}>
+  <Card title="Usuarios" icon="user">
+    Total count of registered accounts holding the **USUARIO** role — your regular, non-staff user base.
+  </Card>
+  <Card title="Admins" icon="shield">
+    Total count of accounts with the **ADMIN** role. Use this to track how many staff members have management access.
+  </Card>
+  <Card title="Reservas" icon="calendar-days">
+    The cumulative number of all reservations ever created on the platform, across every status.
+  </Card>
+  <Card title="Ingresos (S/)" icon="sack-dollar">
+    Sum of `total` for all **CONFIRMADA** reservations — the real-time confirmed revenue figure in Peruvian soles.
+  </Card>
+</CardGroup>
+
+### Quick-Action Tiles
+
+Three cards link directly to the three main management sections:
+
+<CardGroup cols={3}>
+  <Card title="Gestionar Usuarios" icon="users">
+    Promote users to admin, downgrade admins, and activate or deactivate accounts.
+  </Card>
+  <Card title="Gestionar Canchas" icon="house">
+    Full court management including the ability to permanently delete a court.
+  </Card>
+  <Card title="Reportes" icon="chart-bar">
+    System-wide statistics, revenue analytics, and top-court performance data.
+  </Card>
+</CardGroup>
+
+## User Management
+
+Navigate to `/superadmin/usuarios` to see a complete table of every registered user ordered by registration date (newest first).
+
+### User Table Columns
+
+| Column | Description |
+|--------|-------------|
+| **Usuario** | Full name and email address of the account |
+| **Rol** | Role badge — `USUARIO` (green), `ADMIN` (blue), `SUPERADMIN` (red) |
+| **Estado** | Activity badge — `Activo` (green) or `Inactivo` (red) |
+| **Registro** | Account creation date in `DD/MM/YYYY` format |
+| **Acciones** | Role selector (`CambiarRolBtn`) and toggle button (`ToggleUsuarioBtn`) |
+
+### Changing a User's Role
+
+The `CambiarRolBtn` renders as an inline `<select>` dropdown pre-set to the user's current role. Selecting a new value immediately sends a `PATCH` request:
+
+```http
+PATCH /api/usuarios/{id}
+Content-Type: application/json
+
+{ "rol": "ADMIN" }
+```
+
+Available role values are `USUARIO`, `ADMIN`, and `SUPERADMIN`. The page refreshes after the request completes and the role badge updates to reflect the change.
+
+### Activating and Deactivating Accounts
+
+The `ToggleUsuarioBtn` shows **Desactivar** (red, danger style) for active accounts and **Activar** (secondary style) for inactive ones. Clicking either sends:
+
+```http
+PATCH /api/usuarios/{id}
+Content-Type: application/json
+
+{ "activo": false }   // or true to reactivate
+```
+
+Deactivated accounts cannot log in until reactivated.
+
+<Warning>
+  A **SUPERADMIN cannot modify their own account** from this panel. Attempting to change your own role or activation status has no effect — this safeguard prevents accidental self-lockout. Ask another superadmin to make changes to your account if needed.
+</Warning>
+
+## Court Management
+
+Navigate to `/superadmin/canchas` to access the same `GestionCanchasPanel` used by admins, but with the `esSuperAdmin` prop enabled. This unlocks one additional control on every court card:
+
+<Steps>
+  <Step title="Create, edit, and toggle courts">
+    All the same create, edit, and active/inactive toggle actions available to admins are present here. See the [Admin Panel guide](/guides/admin-panel) for details on those workflows.
+  </Step>
+  <Step title="Permanently delete a court">
+    A red **🗑️** delete button appears on each card when `esSuperAdmin` is `true`. Clicking it triggers a browser confirmation dialog:
+
+    > *"¿Eliminar esta cancha? Esta acción no se puede deshacer."*
+
+    Confirming sends:
+
+    ```http
+    DELETE /api/canchas/{id}
+    ```
+
+    The court and all its data are permanently removed from the database. This action **cannot be undone**.
+  </Step>
+</Steps>
+
+## Reports
+
+Navigate to `/superadmin/reportes` to access the platform's analytics hub.
+
+### Global Stats
+
+Four top-level stat cards mirror the superadmin dashboard but add two extra metrics:
+
+<CardGroup cols={2}>
+  <Card title="Total Usuarios" icon="users">
+    Headcount of all registered accounts regardless of role.
+  </Card>
+  <Card title="Total Reservas" icon="calendar-days">
+    Cumulative reservation count across all statuses and users.
+  </Card>
+  <Card title="Ingresos (S/)" icon="sack-dollar">
+    Sum of all confirmed reservation totals, formatted to two decimal places.
+  </Card>
+  <Card title="Promedio/Reserva" icon="chart-line">
+    Average revenue per confirmed reservation — useful for pricing analysis.
+  </Card>
+</CardGroup>
+
+### Reservations by Status (Bar Chart)
+
+A horizontal bar-chart panel breaks down the total reservation count by status. Each status row shows its coloured badge alongside a proportional bar and the exact count:
+
+| Status | Badge Colour | Data Source |
+|--------|-------------|-------------|
+| `CONFIRMADA` | Green | `prisma.reserva.groupBy({ by: ['estado'] })` |
+| `PENDIENTE` | Yellow | — |
+| `CANCELADA` | Red | — |
+| `COMPLETADA` | Blue | — |
+
+Bar widths are calculated as `(count / totalReservas) × 100%`, so the chart is always relative to platform volume.
+
+### Top 5 Most-Booked Courts
+
+A ranked list shows the five courts with the highest number of reservations. Each entry displays:
+
+- **Rank** (1–5) in a green circle
+- Court **name** (resolved from `canchaId` via a secondary Prisma lookup)
+- **Total bookings** and **cumulative revenue** (e.g. `12 reservas · S/ 600`)
+
+### Last 10 Reservations
+
+A summary table of the 10 most recently created reservations across the entire platform, with columns for user name, court name, date, total, and status badge. This gives a live view of the most recent platform activity without navigating to the full admin reservations page.
+
+<Tip>
+  Use the **Top 5 Most-Booked Courts** table together with the **Reservas por Estado** breakdown to identify your highest-demand courts and whether those bookings are being confirmed efficiently. Courts with many `PENDIENTE` entries relative to `CONFIRMADA` may indicate a bottleneck in the admin review workflow.
+</Tip>

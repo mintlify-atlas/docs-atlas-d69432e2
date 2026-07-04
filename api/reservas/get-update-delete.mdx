@@ -1,0 +1,292 @@
+---
+title: "Get, Update, and Delete Reservations by ID"
+sidebarTitle: "Get, Update, Delete"
+description: "GET /api/reservas/[id] retrieves a reservation. PATCH updates its status. DELETE removes it permanently. Role-based access controls apply throughout."
+---
+
+The `/api/reservas/[id]` endpoints provide single-record access to reservations. All three methods require authentication, and each enforces strict role-based rules: regular users can only view and cancel their own reservations, while admins and superadmins have full read, update, and delete privileges over any record.
+
+---
+
+## GET /api/reservas/\[id\]
+
+Retrieves a single reservation by its CUID. The response always includes the nested `cancha` and `usuario` objects regardless of caller role.
+
+**Requires authentication.**
+
+### Path parameter
+
+<ParamField path="id" type="string" required>
+  The CUID of the reservation to retrieve (e.g. `clx1abc2def3ghi`).
+</ParamField>
+
+### Access rules
+
+- **`USUARIO`**: can only retrieve a reservation where `reserva.usuarioId === session.id`. Attempting to fetch another user's reservation returns `403`.
+- **`ADMIN` / `SUPERADMIN`**: can retrieve any reservation.
+
+### Response `200`
+
+```json
+{
+  "reserva": {
+    "id": "clx1abc2def3ghi",
+    "usuarioId": "clx9usr1abc2def",
+    "canchaId": "clx5crt1abc2def",
+    "fecha": "2024-01-15T00:00:00.000Z",
+    "horaInicio": "09:00",
+    "horaFin": "10:00",
+    "estado": "CONFIRMADA",
+    "total": 50.00,
+    "notas": null,
+    "creadoEn": "2024-01-14T12:00:00.000Z",
+    "cancha": { "id": "clx5crt1abc2def", "nombre": "Cancha A", "tipo": "FUTBOL" },
+    "usuario": { "id": "clx9usr1abc2def", "nombre": "Ana López", "email": "ana@example.com" }
+  }
+}
+```
+
+<ResponseField name="reserva" type="Reserva">
+  The full reservation object, always including nested `cancha` and `usuario`.
+</ResponseField>
+
+<ResponseField name="reserva.id" type="string">
+  CUID identifier for the reservation.
+</ResponseField>
+
+<ResponseField name="reserva.usuarioId" type="string">
+  ID of the user who owns the reservation.
+</ResponseField>
+
+<ResponseField name="reserva.canchaId" type="string">
+  ID of the reserved court.
+</ResponseField>
+
+<ResponseField name="reserva.fecha" type="string (ISO 8601)">
+  Date of the reservation as a UTC timestamp.
+</ResponseField>
+
+<ResponseField name="reserva.horaInicio" type="string">
+  Start time in `HH:MM` 24-hour format.
+</ResponseField>
+
+<ResponseField name="reserva.horaFin" type="string">
+  End time in `HH:MM` 24-hour format.
+</ResponseField>
+
+<ResponseField name="reserva.estado" type="enum">
+  One of: `PENDIENTE`, `CONFIRMADA`, `CANCELADA`, `COMPLETADA`.
+</ResponseField>
+
+<ResponseField name="reserva.total" type="number">
+  Total cost of the booking.
+</ResponseField>
+
+<ResponseField name="reserva.notas" type="string | null">
+  Optional notes attached to the reservation.
+</ResponseField>
+
+<ResponseField name="reserva.creadoEn" type="string (ISO 8601)">
+  Timestamp of when the record was created.
+</ResponseField>
+
+<ResponseField name="reserva.cancha" type="object">
+  Nested Cancha (court) object.
+</ResponseField>
+
+<ResponseField name="reserva.usuario" type="object">
+  Nested Usuario object. Present for all roles on this endpoint (unlike the list endpoint, where it is omitted for `USUARIO` callers).
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `401` | `{ "error": "No autenticado" }` | No valid session. |
+| `403` | `{ "error": "Sin permisos" }` | Caller is `USUARIO` and the reservation belongs to a different user. |
+| `404` | `{ "error": "No encontrada" }` | No reservation found with the given `id`. |
+
+---
+
+## PATCH /api/reservas/\[id\]
+
+Partially updates a reservation. Accepts any subset of Reserva fields in the request body and merges them into the existing record.
+
+**Requires authentication.**
+
+<Warning>
+  Users with the `USUARIO` role face strict update restrictions: they can only modify their **own** reservations, and the only allowed state transition is setting `estado` to `"CANCELADA"`. Any attempt to set `estado` to another value — or to patch a reservation they do not own — returns a `403` error. Admins and superadmins have no such restrictions and may update any field on any reservation.
+</Warning>
+
+### Path parameter
+
+<ParamField path="id" type="string" required>
+  The CUID of the reservation to update.
+</ParamField>
+
+### Request body
+
+<ParamField body="estado" type="enum">
+  New status for the reservation. One of: `PENDIENTE`, `CONFIRMADA`, `CANCELADA`, `COMPLETADA`. `USUARIO` callers may only supply `"CANCELADA"`.
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Updated notes for the reservation. Available to `ADMIN` and `SUPERADMIN` only.
+</ParamField>
+
+<ParamField body="horaInicio" type="string">
+  Updated start time in `HH:MM` format. Available to `ADMIN` and `SUPERADMIN` only.
+</ParamField>
+
+<ParamField body="horaFin" type="string">
+  Updated end time in `HH:MM` format. Available to `ADMIN` and `SUPERADMIN` only.
+</ParamField>
+
+<ParamField body="total" type="number">
+  Updated total cost. Available to `ADMIN` and `SUPERADMIN` only.
+</ParamField>
+
+### Response `200`
+
+```json
+{
+  "ok": true,
+  "reserva": {
+    "id": "clx1abc2def3ghi",
+    "usuarioId": "clx9usr1abc2def",
+    "canchaId": "clx5crt1abc2def",
+    "fecha": "2024-01-15T00:00:00.000Z",
+    "horaInicio": "09:00",
+    "horaFin": "10:00",
+    "estado": "CONFIRMADA",
+    "total": 50.00,
+    "notas": "Confirmado por admin",
+    "creadoEn": "2024-01-14T12:00:00.000Z",
+    "cancha": { "id": "clx5crt1abc2def", "nombre": "Cancha A", "tipo": "FUTBOL" },
+    "usuario": { "id": "clx9usr1abc2def", "nombre": "Ana López", "email": "ana@example.com" }
+  }
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="reserva" type="Reserva">
+  The updated reservation including nested `cancha` and `usuario`.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `401` | `{ "error": "No autenticado" }` | No valid session. |
+| `403` | `{ "error": "Sin permisos" }` | `USUARIO` attempting to patch a reservation that does not belong to them. |
+| `403` | `{ "error": "Solo puedes cancelar tu reserva" }` | `USUARIO` attempting to set `estado` to any value other than `"CANCELADA"`. |
+| `404` | `{ "error": "No encontrada" }` | No reservation found with the given `id`. |
+
+---
+
+## DELETE /api/reservas/\[id\]
+
+Permanently deletes a reservation. This action is irreversible.
+
+**Requires `ADMIN` or `SUPERADMIN` role.** Any request from a `USUARIO` session — or an unauthenticated request — is rejected with `403`. There is no soft-delete; the record is removed from the database entirely.
+
+### Path parameter
+
+<ParamField path="id" type="string" required>
+  The CUID of the reservation to delete.
+</ParamField>
+
+### Response `200`
+
+```json
+{ "ok": true }
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `403` | `{ "error": "Sin permisos" }` | Caller is not authenticated, or has `USUARIO` role. |
+
+---
+
+## Examples
+
+<CodeGroup>
+
+```bash Get a reservation (curl)
+curl https://your-domain.com/api/reservas/clx1abc2def3ghi \
+  -H "Cookie: session=<your-session-cookie>"
+```
+
+```bash Cancel a reservation — USUARIO (curl)
+curl -X PATCH https://your-domain.com/api/reservas/clx1abc2def3ghi \
+  -H "Cookie: session=<your-session-cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{ "estado": "CANCELADA" }'
+```
+
+```bash Confirm a reservation — ADMIN (curl)
+curl -X PATCH https://your-domain.com/api/reservas/clx1abc2def3ghi \
+  -H "Cookie: session=<admin-session-cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{ "estado": "CONFIRMADA", "notas": "Confirmado telefónicamente" }'
+```
+
+```bash Delete a reservation — ADMIN (curl)
+curl -X DELETE https://your-domain.com/api/reservas/clx1abc2def3ghi \
+  -H "Cookie: session=<admin-session-cookie>"
+```
+
+```typescript Get a reservation (TypeScript)
+const res = await fetch(`/api/reservas/${reservaId}`, {
+  credentials: "include",
+});
+
+if (res.status === 403) {
+  console.error("Access denied — not your reservation");
+} else if (res.status === 404) {
+  console.error("Reservation not found");
+} else {
+  const { reserva } = await res.json();
+  console.log(reserva.estado);
+}
+```
+
+```typescript Cancel a reservation — USUARIO (TypeScript)
+const res = await fetch(`/api/reservas/${reservaId}`, {
+  method: "PATCH",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ estado: "CANCELADA" }),
+});
+
+if (!res.ok) {
+  const { error } = await res.json();
+  throw new Error(error);
+}
+const { ok, reserva } = await res.json();
+console.log(reserva.estado); // "CANCELADA"
+```
+
+```typescript Delete a reservation — ADMIN (TypeScript)
+const res = await fetch(`/api/reservas/${reservaId}`, {
+  method: "DELETE",
+  credentials: "include",
+});
+
+if (res.status === 403) {
+  console.error("Only admins can delete reservations");
+} else if (res.ok) {
+  console.log("Reservation deleted");
+}
+```
+
+</CodeGroup>

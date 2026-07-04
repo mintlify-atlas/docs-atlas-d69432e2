@@ -1,0 +1,118 @@
+---
+title: "Register a New User Account"
+sidebarTitle: "POST /register"
+description: "Creates a new USUARIO account, hashes the password with bcrypt, and issues an HTTP-only JWT cookie valid for 7 days."
+---
+
+Creates a new user account with the default role of `USUARIO`. The submitted password is hashed with bcrypt at 10 rounds before being stored — the plain-text value is never persisted. On success, the server signs a JWT and writes it to an HTTP-only `token` cookie, logging the user in immediately without a separate login step.
+
+## Request
+
+```
+POST /api/auth/register
+```
+
+<ParamField body="nombre" type="string" required>
+  The user's display name. Stored as-is and returned in all session payloads.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  The user's email address. Must be unique across all accounts — the server queries the database before inserting.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's chosen password. Must be **at least 6 characters** long. Validated before hashing.
+</ParamField>
+
+## Response
+
+### 200 — Success
+
+Returns the newly created user's public profile and sets the `token` cookie.
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on a successful response.
+</ResponseField>
+
+<ResponseField name="usuario" type="object">
+  Public profile of the newly registered user.
+
+  <Expandable title="usuario fields">
+    <ResponseField name="usuario.id" type="string">
+      Unique identifier of the new user (UUID).
+    </ResponseField>
+    <ResponseField name="usuario.nombre" type="string">
+      Display name supplied during registration.
+    </ResponseField>
+    <ResponseField name="usuario.email" type="string">
+      Email address supplied during registration.
+    </ResponseField>
+    <ResponseField name="usuario.rol" type="string">
+      Always `"USUARIO"` for newly registered accounts. Elevated roles (`ADMIN`, `SUPERADMIN`) can only be assigned by an administrator.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  The response also sets a `Set-Cookie` header with the following attributes:
+  `httpOnly: true`, `sameSite: lax`, `maxAge: 604800` (7 days), `path: /`.
+  In production the `secure` flag is also added so the cookie is only sent over HTTPS.
+</Note>
+
+### Error Responses
+
+| Status | `error` value | Cause |
+|--------|---------------|-------|
+| `400`  | `"Todos los campos son requeridos"` | One or more of `nombre`, `email`, or `password` are absent from the request body. |
+| `400`  | `"La contraseña debe tener al menos 6 caracteres"` | The supplied password is fewer than 6 characters long. |
+| `409`  | `"El email ya está registrado"` | An account with the provided email already exists. |
+| `500`  | `"Error interno del servidor"` | An unexpected server-side error occurred. |
+
+<Warning>
+  Email uniqueness is checked at the application layer via a `findUnique` query before the insert. For high-concurrency scenarios, the database-level unique constraint on the `email` column acts as the final guard — a race condition will surface as a `500` rather than a `409`.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-app.vercel.app/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"nombre": "Ana García", "email": "ana@reservafacil.com", "password": "segura123"}'
+```
+
+```typescript TypeScript
+const res = await fetch('/api/auth/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nombre: 'Ana García',
+    email: 'ana@reservafacil.com',
+    password: 'segura123',
+  }),
+})
+
+const data = await res.json()
+// data.usuario = { id, nombre, email, rol: "USUARIO" }
+
+if (!res.ok) {
+  console.error(data.error) // e.g. "El email ya está registrado"
+}
+```
+
+</CodeGroup>
+
+### Success response body
+
+```json
+{
+  "ok": true,
+  "usuario": {
+    "id": "clx9z8y7x0000abcd5678efgh",
+    "nombre": "Ana García",
+    "email": "ana@reservafacil.com",
+    "rol": "USUARIO"
+  }
+}
+```

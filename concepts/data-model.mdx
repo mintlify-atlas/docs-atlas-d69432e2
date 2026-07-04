@@ -1,0 +1,196 @@
+---
+title: "ReservaFácil Data Model and Schema Reference"
+sidebarTitle: "Data Model"
+description: "ReservaFácil's PostgreSQL schema has three core models — Usuario, Cancha, and Reserva — with enums for roles, court types, and reservation statuses."
+---
+
+ReservaFácil's persistence layer is a PostgreSQL database managed through Prisma ORM. The schema is built around three core models — `Usuario`, `Cancha`, and `Reserva` — linked by foreign-key relationships. Three enums (`Rol`, `TipoCancha`, `EstadoReserva`) constrain the allowed values for roles, court categories, and booking states respectively. Understanding the schema is essential for working with the API layer and building new features.
+
+## Full Prisma Schema
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  USUARIO
+  ADMIN
+  SUPERADMIN
+}
+
+enum EstadoReserva {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+  COMPLETADA
+}
+
+enum TipoCancha {
+  FUTBOL
+  TENIS
+  BASQUET
+  VOLLEYBALL
+}
+
+model Usuario {
+  id         String    @id @default(cuid())
+  nombre     String
+  email      String    @unique
+  password   String
+  rol        Rol       @default(USUARIO)
+  activo     Boolean   @default(true)
+  creadoEn   DateTime  @default(now())
+  reservas   Reserva[]
+}
+
+model Cancha {
+  id            String     @id @default(cuid())
+  nombre        String
+  tipo          TipoCancha
+  descripcion   String?
+  precioPorHora Float
+  capacidad     Int
+  activa        Boolean    @default(true)
+  imagen        String?
+  creadoEn      DateTime   @default(now())
+  reservas      Reserva[]
+}
+
+model Reserva {
+  id          String        @id @default(cuid())
+  usuarioId   String
+  canchaId    String
+  fecha       DateTime
+  horaInicio  String        // "08:00"
+  horaFin     String        // "09:00"
+  estado      EstadoReserva @default(PENDIENTE)
+  total       Float
+  notas       String?
+  creadoEn    DateTime      @default(now())
+
+  usuario     Usuario       @relation(fields: [usuarioId], references: [id])
+  cancha      Cancha        @relation(fields: [canchaId], references: [id])
+}
+```
+
+## Entity Relationships
+
+- **Usuario → Reserva** — One-to-many. A single user can hold any number of reservations. Each `Reserva` stores a `usuarioId` foreign key pointing to its owner.
+- **Cancha → Reserva** — One-to-many. A court can appear in any number of reservations across different dates and times. Each `Reserva` stores a `canchaId` foreign key pointing to the booked court.
+- **Reserva** — The join entity that connects a specific `Usuario` to a specific `Cancha` for a defined time window. It carries all booking metadata (date, time, price, status, notes).
+
+## Model Reference
+
+### Usuario
+
+Represents an end-user or staff member account.
+
+| Field       | Type       | Description                                                      |
+| ----------- | ---------- | ---------------------------------------------------------------- |
+| `id`        | `String`   | Primary key. Auto-generated CUID.                                |
+| `nombre`    | `String`   | Display name of the user.                                        |
+| `email`     | `String`   | Unique email address. Used as the login identifier.              |
+| `password`  | `String`   | bcrypt-hashed password. Never returned in API responses.         |
+| `rol`       | `Rol`      | User role. Defaults to `USUARIO` on registration.                |
+| `activo`    | `Boolean`  | Account status flag. Inactive users cannot log in. Defaults to `true`. |
+| `creadoEn`  | `DateTime` | Timestamp of account creation. Set automatically by the database. |
+| `reservas`  | `Reserva[]`| All reservations made by this user (relation).                   |
+
+### Cancha
+
+Represents a bookable sports court.
+
+| Field           | Type         | Description                                                    |
+| --------------- | ------------ | -------------------------------------------------------------- |
+| `id`            | `String`     | Primary key. Auto-generated CUID.                              |
+| `nombre`        | `String`     | Court display name (e.g. "Cancha Norte 1").                    |
+| `tipo`          | `TipoCancha` | Sport category. One of `FUTBOL`, `TENIS`, `BASQUET`, `VOLLEYBALL`. |
+| `descripcion`   | `String?`    | Optional free-text description of the court.                   |
+| `precioPorHora` | `Float`      | Hourly rental price in the platform's base currency.           |
+| `capacidad`     | `Int`        | Maximum number of players the court accommodates.              |
+| `activa`        | `Boolean`    | Whether the court is visible and bookable. Defaults to `true`. |
+| `imagen`        | `String?`    | Optional URL to a court photo.                                 |
+| `creadoEn`      | `DateTime`   | Timestamp when the court record was created.                   |
+| `reservas`      | `Reserva[]`  | All reservations for this court (relation).                    |
+
+### Reserva
+
+Represents a single booking of a court by a user.
+
+| Field        | Type            | Description                                                        |
+| ------------ | --------------- | ------------------------------------------------------------------ |
+| `id`         | `String`        | Primary key. Auto-generated CUID.                                  |
+| `usuarioId`  | `String`        | Foreign key → `Usuario.id`. The user who made the booking.         |
+| `canchaId`   | `String`        | Foreign key → `Cancha.id`. The court being booked.                 |
+| `fecha`      | `DateTime`      | The calendar date of the reservation.                              |
+| `horaInicio` | `String`        | Start time stored as a 24-hour string, e.g. `"08:00"`.             |
+| `horaFin`    | `String`        | End time stored as a 24-hour string, e.g. `"09:00"`.              |
+| `estado`     | `EstadoReserva` | Current booking status. Defaults to `PENDIENTE`.                  |
+| `total`      | `Float`         | Calculated cost for the booked duration.                           |
+| `notas`      | `String?`       | Optional notes or special requests from the user.                  |
+| `creadoEn`   | `DateTime`      | Timestamp when the reservation record was created.                 |
+| `usuario`    | `Usuario`       | Resolved relation to the booking user.                             |
+| `cancha`     | `Cancha`        | Resolved relation to the booked court.                             |
+
+<Note>
+  `horaInicio` and `horaFin` are stored as plain strings (e.g. `"08:00"`, `"09:00"`), **not** as `DateTime` values. This simplifies time-slot scheduling and avoids timezone complications when rendering time pickers in the UI. Combine them with the `fecha` field when you need a full timestamp for overlap checks or calendar display.
+</Note>
+
+## Enums
+
+### Rol
+
+Controls which parts of the application a user can access.
+
+| Value        | Description                                                        |
+| ------------ | ------------------------------------------------------------------ |
+| `USUARIO`    | Default role for self-registered accounts. Booking and self-service access only. |
+| `ADMIN`      | Staff role. Can manage courts and all reservations.                |
+| `SUPERADMIN` | System administrator. Full platform control, including user management. |
+
+### EstadoReserva
+
+Tracks the lifecycle of a booking from creation to completion.
+
+| Value        | Description                                                        |
+| ------------ | ------------------------------------------------------------------ |
+| `PENDIENTE`  | Initial state. The booking has been created but not yet confirmed. |
+| `CONFIRMADA` | An ADMIN or SUPERADMIN has confirmed the booking.                  |
+| `CANCELADA`  | The booking was cancelled — either by the user (if `PENDIENTE`) or by an ADMIN/SUPERADMIN at any point. |
+| `COMPLETADA` | The booked time slot has passed and the reservation is closed.     |
+
+### TipoCancha
+
+Categorises each court by sport.
+
+| Value        | Description              |
+| ------------ | ------------------------ |
+| `FUTBOL`     | Football / soccer court. |
+| `TENIS`      | Tennis court.            |
+| `BASQUET`    | Basketball court.        |
+| `VOLLEYBALL` | Volleyball court.        |
+
+## Reservation Status Lifecycle
+
+A `Reserva` moves through the following states from creation to closure:
+
+```
+PENDIENTE ──► CONFIRMADA ──► COMPLETADA
+    │
+    └──► CANCELADA
+```
+
+- **PENDIENTE → CONFIRMADA** — Triggered by an ADMIN or SUPERADMIN confirming the booking via the admin panel or `PATCH /api/reservas/[id]`.
+- **CONFIRMADA → COMPLETADA** — Triggered once the scheduled time has passed. This transition can be applied manually by an ADMIN/SUPERADMIN or automated via a scheduled job.
+- **PENDIENTE → CANCELADA** — A user can cancel their own booking while it is still `PENDIENTE`. An ADMIN or SUPERADMIN can cancel any reservation at any time.
+- **CONFIRMADA → CANCELADA** — Only an ADMIN or SUPERADMIN can cancel an already-confirmed booking.
+
+<Tip>
+  A reservation in `COMPLETADA` or `CANCELADA` state is considered terminal — it will not transition to any other state and should be treated as read-only in the UI.
+</Tip>

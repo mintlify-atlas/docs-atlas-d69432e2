@@ -1,0 +1,122 @@
+---
+title: "Deploy ReservaFácil to Vercel"
+sidebarTitle: "Vercel"
+description: "Step-by-step guide to deploying ReservaFácil on Vercel: connect your repo, configure environment variables, and run database migrations for production."
+---
+
+Vercel is the recommended platform for hosting ReservaFácil. Its native Next.js support means zero-configuration builds, automatic HTTPS, and seamless preview deployments — all available on the free Hobby tier. This guide walks you through importing your repository, wiring up the required environment variables, and pushing the database schema so your production instance is ready to accept bookings.
+
+## Prerequisites
+
+Before you begin, make sure you have the following ready:
+
+<CardGroup cols={3}>
+  <Card title="GitHub Repository" icon="github">
+    Your ReservaFácil source code pushed to a public or private GitHub repo.
+  </Card>
+  <Card title="Vercel Account" icon="triangle">
+    A free account at [vercel.com](https://vercel.com). Sign up with your GitHub account for one-click repo access.
+  </Card>
+  <Card title="PostgreSQL Database" icon="database">
+    A production database connection string. [Neon.tech](https://neon.tech) provides a generous free tier with SSL enabled by default.
+  </Card>
+</CardGroup>
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Push your code to GitHub">
+    Ensure your latest changes are committed and pushed to the `main` branch (or whichever branch you want Vercel to deploy from).
+
+    ```bash
+    git add .
+    git commit -m "ready for production"
+    git push origin main
+    ```
+  </Step>
+
+  <Step title="Import your project on Vercel">
+    1. Go to [vercel.com/new](https://vercel.com/new) and click **Add New → Project**.
+    2. Select **Continue with GitHub** and authorise Vercel to access your repositories.
+    3. Find your `reservafacil` repo in the list and click **Import**.
+    4. Vercel auto-detects the Next.js framework — leave all build settings at their defaults.
+  </Step>
+
+  <Step title="Configure environment variables">
+    Before clicking **Deploy**, expand the **Environment Variables** panel and add the three required variables:
+
+    | Variable | Value |
+    |---|---|
+    | `DATABASE_URL` | Your PostgreSQL connection string (e.g. from Neon.tech) |
+    | `JWT_SECRET` | A random secret — minimum 32 characters (see below) |
+    | `NEXTAUTH_URL` | The Vercel URL Vercel assigns, e.g. `https://your-project.vercel.app` |
+
+    #### Generating a secure JWT secret
+
+    Run the following command locally and paste the output as the value for `JWT_SECRET`:
+
+    ```bash
+    openssl rand -base64 32
+    ```
+
+    <Note>
+      You can also add or update environment variables at any time from **Project Settings → Environment Variables** in the Vercel dashboard. Changes take effect on the next deployment.
+    </Note>
+  </Step>
+
+  <Step title="Deploy the project">
+    Click **Deploy**. Vercel will clone your repository, run `npm install`, then execute `next build`.
+
+    <Note>
+      The `postinstall` script in `package.json` runs `prisma generate` automatically every time `npm install` is executed — including on every Vercel build. You never need to call `prisma generate` manually in CI.
+    </Note>
+
+    The initial build typically takes 60–90 seconds. Once the confetti animation appears, your app is live — but the database schema has not been applied yet. Continue to the next step before testing.
+  </Step>
+
+  <Step title="Push the database schema">
+    With `DATABASE_URL` set to your production connection string in your **local** `.env.local` (or exported in your shell), run the following command from the project root:
+
+    ```bash
+    npx prisma db push
+    ```
+
+    This reads `prisma/schema.prisma` and creates all tables, enums, and indexes in your production database without generating a migration history file — ideal for first-time setup and simple deployments.
+
+    You should see output similar to:
+
+    ```
+    Environment variables loaded from .env.local
+    Prisma schema loaded from prisma/schema.prisma
+    Datasource "db": PostgreSQL database "reservafacil" at "host:5432"
+
+    🚀 Your database is now in sync with your Prisma schema.
+    ```
+
+    <Warning>
+      Never run `npm run seed` against your production database. The seed script calls `deleteMany()` on every table before inserting test data, which will permanently delete all real bookings, users, and courts. The seed command exists for local development only.
+    </Warning>
+  </Step>
+
+  <Step title="Verify the deployment">
+    Open your production URL (e.g. `https://your-project.vercel.app`) in a browser. You should see the ReservaFácil landing page. Attempt to log in or register a new account to confirm the database connection is working end-to-end.
+
+    If you encounter a 500 error, check **Vercel Dashboard → Project → Deployments → (latest) → Logs** for the exact error message — missing environment variables and incorrect `DATABASE_URL` formats are the most common culprits.
+  </Step>
+</Steps>
+
+## Preview Deployments
+
+<Tip>
+  Vercel automatically creates an isolated **preview deployment** for every pull request you open against your main branch. Each preview gets its own unique URL (e.g. `https://reservafacil-git-feature-xyz-yourteam.vercel.app`), making it safe to test new features, UI changes, or API routes in a production-like environment before merging. Point preview deployments at a separate Neon.tech branch database to keep your production data untouched.
+</Tip>
+
+## Environment Variable Reference
+
+The table below summarises every variable ReservaFácil reads at runtime. All three must be present for the app to start correctly.
+
+| Variable | Example value | Required |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://user:password@host:5432/reservafacil?sslmode=require` | ✅ |
+| `JWT_SECRET` | `K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72...` | ✅ |
+| `NEXTAUTH_URL` | `https://your-project.vercel.app` | ✅ |

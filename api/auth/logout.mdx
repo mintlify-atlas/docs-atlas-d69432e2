@@ -1,0 +1,65 @@
+---
+title: "Log Out and Invalidate Session Token"
+sidebarTitle: "POST /logout"
+description: "Clears the HTTP-only token cookie from the browser, effectively ending the current session without server-side state."
+---
+
+Ends the current user session by deleting the `token` cookie from the browser. Because ReservaFácil uses stateless JWT authentication, there is no server-side session record to revoke — logging out is achieved entirely by removing the cookie so that subsequent requests no longer carry a credential. No request body or authentication header is needed.
+
+## Request
+
+```
+POST /api/auth/logout
+```
+
+This endpoint requires no request body and no `Authorization` header. The browser's existing `token` cookie is deleted regardless of whether it is present or valid.
+
+## Response
+
+### 200 — Success
+
+<ResponseField name="ok" type="boolean">
+  Always `true`. Returned even if no `token` cookie was present on the request.
+</ResponseField>
+
+<Note>
+  The response includes a `Set-Cookie: token=; Max-Age=0; Path=/` header that instructs the browser to immediately expire and remove the cookie. After this response is received, `GET /api/auth/me` will return `401`.
+</Note>
+
+### Error Responses
+
+This endpoint does not return application-level errors. Network or infrastructure failures may produce a generic `500` from the hosting platform.
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-app.vercel.app/api/auth/logout \
+  -H "Cookie: token=<your-jwt-token>"
+```
+
+```typescript TypeScript
+const res = await fetch('/api/auth/logout', {
+  method: 'POST',
+  credentials: 'include', // required so the browser sends the token cookie
+})
+
+const data = await res.json()
+// data = { ok: true }
+
+if (data.ok) {
+  // Redirect to the login page or clear any client-side user state
+  window.location.href = '/login'
+}
+```
+
+</CodeGroup>
+
+### Success response body
+
+```json
+{
+  "ok": true
+}
+```

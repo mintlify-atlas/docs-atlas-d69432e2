@@ -1,0 +1,284 @@
+---
+title: "Get, Update, and Delete a Court by ID"
+sidebarTitle: "Get, Update, Delete"
+description: "GET /api/canchas/[id] retrieves a court. PUT updates it (ADMIN+). DELETE permanently removes it (SUPERADMIN only)."
+---
+
+These three endpoints operate on a single court identified by its unique `id`. Retrieval is public and requires no session. Updating a court requires an **ADMIN** or **SUPERADMIN** role, while deletion is restricted exclusively to **SUPERADMIN** accounts. The `token` HTTP-only cookie is read automatically on same-origin requests for the authenticated operations.
+
+---
+
+## GET /api/canchas/\[id\]
+
+Returns a single court by its unique identifier. This endpoint is **public** — no authentication is required.
+
+### Path parameter
+
+| Parameter | Type     | Description                                   |
+| --------- | -------- | --------------------------------------------- |
+| `id`      | `string` | The CUID of the court to retrieve, e.g. `"clx0z1abc0000defg1234hijk"`. |
+
+### Response — 200 OK
+
+```json
+{
+  "cancha": {
+    "id": "clx0z1abc0000defg1234hijk",
+    "nombre": "Cancha Fútbol Norte",
+    "tipo": "FUTBOL",
+    "descripcion": "Cancha de fútbol 7 con césped sintético.",
+    "precioPorHora": 35000,
+    "capacidad": 14,
+    "activa": true,
+    "imagen": "https://cdn.example.com/canchas/futbol-norte.jpg",
+    "creadoEn": "2024-03-15T10:00:00.000Z"
+  }
+}
+```
+
+<ResponseField name="cancha" type="Cancha" required>
+  The matching court object.
+
+  <Expandable title="Cancha object fields">
+    <ResponseField name="id" type="string" required>
+      Unique court identifier (CUID), e.g. `"clx0z1abc0000defg1234hijk"`.
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string" required>
+      Human-readable name of the court.
+    </ResponseField>
+
+    <ResponseField name="tipo" type="'FUTBOL' | 'TENIS' | 'BASQUET' | 'VOLLEYBALL'" required>
+      Sport type assigned to this court.
+    </ResponseField>
+
+    <ResponseField name="descripcion" type="string | null">
+      Optional free-text description. `null` when not set.
+    </ResponseField>
+
+    <ResponseField name="precioPorHora" type="number" required>
+      Hourly rental price (floating-point).
+    </ResponseField>
+
+    <ResponseField name="capacidad" type="number" required>
+      Maximum player capacity (integer).
+    </ResponseField>
+
+    <ResponseField name="activa" type="boolean" required>
+      `true` if the court is currently accepting reservations.
+    </ResponseField>
+
+    <ResponseField name="imagen" type="string | null">
+      Absolute URL of a court photo, or `null` if none has been set.
+    </ResponseField>
+
+    <ResponseField name="creadoEn" type="string" required>
+      ISO 8601 creation timestamp, e.g. `"2024-03-15T10:00:00.000Z"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Error response
+
+| Status | Body                          | Cause                                     |
+| ------ | ----------------------------- | ----------------------------------------- |
+| `404`  | `{ "error": "No encontrada" }` | No court with the given `id` was found in the database. |
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET https://your-domain.com/api/canchas/clx0z1abc0000defg1234hijk
+```
+
+```typescript TypeScript
+const id = 'clx0z1abc0000defg1234hijk'
+const res = await fetch(`/api/canchas/${id}`)
+
+if (res.status === 404) {
+  console.error('Court not found')
+} else {
+  const { cancha } = await res.json()
+  console.log(cancha.nombre, cancha.precioPorHora)
+}
+```
+
+</CodeGroup>
+
+---
+
+## PUT /api/canchas/\[id\]
+
+Updates one or more fields on an existing court. The authenticated user must have the **ADMIN** or **SUPERADMIN** role. Only the fields present in the request body are changed; however, because `precioPorHora` and `capacidad` are coerced via `parseFloat`/`parseInt`, omitting them from the body will store `NaN` — include only the fields you intend to update or provide all fields.
+
+<Note>
+  Send only the fields you want to change. The server passes all body fields directly to Prisma's `update`, so omitting a field means its existing value is preserved only for string/boolean fields. Always include `precioPorHora` and `capacidad` when updating numeric fields to avoid coercion issues.
+</Note>
+
+### Path parameter
+
+| Parameter | Type     | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `id`      | `string` | The CUID of the court to update.         |
+
+### Request body (all fields optional)
+
+<ParamField body="nombre" type="string">
+  New display name for the court.
+</ParamField>
+
+<ParamField body="tipo" type="'FUTBOL' | 'TENIS' | 'BASQUET' | 'VOLLEYBALL'">
+  New sport category. Must be one of the four `TipoCancha` enum values.
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Updated description. Pass an empty string or `null` to clear it.
+</ParamField>
+
+<ParamField body="precioPorHora" type="number">
+  Updated hourly rental price. Accepts a number or numeric string.
+</ParamField>
+
+<ParamField body="capacidad" type="number">
+  Updated player capacity. Accepts a number or numeric string.
+</ParamField>
+
+<ParamField body="activa" type="boolean">
+  Set to `false` to deactivate the court and prevent new reservations, or `true` to reactivate it. This is the preferred alternative to permanent deletion.
+</ParamField>
+
+### Response — 200 OK
+
+```json
+{
+  "ok": true,
+  "cancha": {
+    "id": "clx0z1abc0000defg1234hijk",
+    "nombre": "Cancha Fútbol Norte — Remodelada",
+    "tipo": "FUTBOL",
+    "descripcion": "Ahora con vestuarios renovados.",
+    "precioPorHora": 40000,
+    "capacidad": 14,
+    "activa": true,
+    "imagen": null,
+    "creadoEn": "2024-03-15T10:00:00.000Z"
+  }
+}
+```
+
+<ResponseField name="ok" type="true" required>
+  Always `true` on a successful update.
+</ResponseField>
+
+<ResponseField name="cancha" type="Cancha" required>
+  The full updated court object reflecting all persisted changes.
+</ResponseField>
+
+### Error response
+
+| Status | Body                          | Cause                                                           |
+| ------ | ----------------------------- | --------------------------------------------------------------- |
+| `403`  | `{ "error": "Sin permisos" }` | No active session, or the user's role is not `ADMIN`/`SUPERADMIN`. |
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT https://your-domain.com/api/canchas/clx0z1abc0000defg1234hijk \
+  -H "Content-Type: application/json" \
+  --cookie "token=<your_jwt_token>" \
+  -d '{
+    "nombre": "Cancha Fútbol Norte — Remodelada",
+    "descripcion": "Ahora con vestuarios renovados.",
+    "precioPorHora": 40000,
+    "capacidad": 14
+  }'
+```
+
+```typescript TypeScript
+const id = 'clx0z1abc0000defg1234hijk'
+
+const res = await fetch(`/api/canchas/${id}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nombre: 'Cancha Fútbol Norte — Remodelada',
+    descripcion: 'Ahora con vestuarios renovados.',
+    precioPorHora: 40000,
+    capacidad: 14,
+  }),
+})
+
+if (!res.ok) {
+  const { error } = await res.json()
+  throw new Error(error)
+}
+
+const { ok, cancha } = await res.json()
+console.log('Updated:', cancha.nombre)
+```
+
+</CodeGroup>
+
+---
+
+## DELETE /api/canchas/\[id\]
+
+Permanently deletes a court record from the database. This action is restricted to **SUPERADMIN** accounts only and **cannot be undone**.
+
+<Warning>
+  **Deletion is permanent.** Once a court is deleted, all associated data (including reservation history referencing it) may be affected by database cascade rules. If you simply want to stop accepting new bookings, prefer setting `activa: false` via `PUT /api/canchas/[id]` instead — this preserves all historical data while hiding the court from the booking flow.
+</Warning>
+
+### Path parameter
+
+| Parameter | Type     | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `id`      | `string` | The CUID of the court to delete.         |
+
+### Response — 200 OK
+
+```json
+{
+  "ok": true
+}
+```
+
+<ResponseField name="ok" type="true" required>
+  Always `true` when the court was successfully deleted.
+</ResponseField>
+
+### Error response
+
+| Status | Body                          | Cause                                                                          |
+| ------ | ----------------------------- | ------------------------------------------------------------------------------ |
+| `403`  | `{ "error": "Sin permisos" }` | No active session, or the authenticated user's role is not `SUPERADMIN`. `ADMIN` accounts cannot delete courts. |
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://your-domain.com/api/canchas/clx0z1abc0000defg1234hijk \
+  --cookie "token=<your_jwt_token>"
+```
+
+```typescript TypeScript
+const id = 'clx0z1abc0000defg1234hijk'
+
+const res = await fetch(`/api/canchas/${id}`, {
+  method: 'DELETE',
+  // The `token` cookie is sent automatically by the browser
+})
+
+if (res.status === 403) {
+  console.error('Only SUPERADMIN accounts can delete courts.')
+} else {
+  const { ok } = await res.json()
+  console.log('Deleted:', ok) // true
+}
+```
+
+</CodeGroup>

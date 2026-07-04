@@ -1,0 +1,112 @@
+---
+title: "Authenticate with Email and Password"
+sidebarTitle: "POST /login"
+description: "Validates user credentials, issues a signed HS256 JWT, and sets an HTTP-only token cookie valid for 7 days."
+---
+
+Exchanges a registered email and password for a signed JWT session. On success the server writes a `token` cookie directly to the browser — no client-side token storage is required. The cookie is HTTP-only and scoped to the root path, so it is automatically attached to every subsequent request made from the same origin.
+
+## Request
+
+```
+POST /api/auth/login
+```
+
+<ParamField body="email" type="string" required>
+  The email address associated with the user's account. Must exactly match a record in the database (case-sensitive).
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's plain-text password. The server compares this against the stored bcrypt hash (10 rounds) using `bcrypt.compare`.
+</ParamField>
+
+## Response
+
+### 200 — Success
+
+Returns the authenticated user's public profile and sets the `token` cookie.
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on a successful response.
+</ResponseField>
+
+<ResponseField name="usuario" type="object">
+  Public profile of the authenticated user.
+
+  <Expandable title="usuario fields">
+    <ResponseField name="usuario.id" type="string">
+      Unique identifier of the user (UUID).
+    </ResponseField>
+    <ResponseField name="usuario.nombre" type="string">
+      Display name of the user.
+    </ResponseField>
+    <ResponseField name="usuario.email" type="string">
+      Email address of the user.
+    </ResponseField>
+    <ResponseField name="usuario.rol" type="string">
+      Role assigned to the user. One of `USUARIO`, `ADMIN`, or `SUPERADMIN`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  The response also sets a `Set-Cookie` header with the following attributes:
+  `httpOnly: true`, `sameSite: lax`, `maxAge: 604800` (7 days), `path: /`.
+  In production the `secure` flag is also added so the cookie is only sent over HTTPS.
+</Note>
+
+### Error Responses
+
+| Status | `error` value | Cause |
+|--------|---------------|-------|
+| `400`  | `"Email y contraseña requeridos"` | One or both of the required fields are missing from the request body. |
+| `401`  | `"Credenciales inválidas"` | No user found for that email, the account has `activo = false`, or the password does not match. |
+| `500`  | `"Error interno del servidor"` | An unexpected server-side error occurred. |
+
+<Warning>
+  A `401` is returned for both "user not found" and "wrong password" to avoid leaking whether an email address is registered.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-app.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "usuario@reservafacil.com", "password": "usuario123"}'
+```
+
+```typescript TypeScript
+const res = await fetch('/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'usuario@reservafacil.com',
+    password: 'usuario123',
+  }),
+})
+
+const data = await res.json()
+// data.usuario = { id, nombre, email, rol }
+
+if (!res.ok) {
+  console.error(data.error) // e.g. "Credenciales inválidas"
+}
+```
+
+</CodeGroup>
+
+### Success response body
+
+```json
+{
+  "ok": true,
+  "usuario": {
+    "id": "clx1a2b3c0000qwer1234abcd",
+    "nombre": "Ana García",
+    "email": "usuario@reservafacil.com",
+    "rol": "USUARIO"
+  }
+}
+```

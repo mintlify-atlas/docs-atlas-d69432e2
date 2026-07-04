@@ -1,0 +1,100 @@
+---
+title: "Get the Currently Authenticated User"
+sidebarTitle: "GET /me"
+description: "Reads the HTTP-only token cookie, verifies the JWT, and returns the session payload for the currently logged-in user."
+---
+
+Returns the identity of the user associated with the current session. The server reads the `token` cookie, verifies its HS256 signature and expiry via `getSession()`, and returns the decoded payload. This endpoint is the canonical way to hydrate client-side auth state on page load — for example, to show the user's name in a navbar or gate access to protected UI routes.
+
+## Request
+
+```
+GET /api/auth/me
+```
+
+No request body or query parameters are required. The endpoint relies entirely on the `token` cookie being present and valid. When calling from the browser, include `credentials: 'include'` to ensure the cookie is forwarded.
+
+## Response
+
+### 200 — Success
+
+<ResponseField name="usuario" type="object">
+  The decoded JWT payload for the currently authenticated user.
+
+  <Expandable title="usuario fields">
+    <ResponseField name="usuario.id" type="string">
+      Unique identifier of the authenticated user (UUID).
+    </ResponseField>
+    <ResponseField name="usuario.email" type="string">
+      Email address stored in the token at the time it was signed.
+    </ResponseField>
+    <ResponseField name="usuario.nombre" type="string">
+      Display name stored in the token at the time it was signed.
+    </ResponseField>
+    <ResponseField name="usuario.rol" type="string">
+      Role of the user. One of `USUARIO`, `ADMIN`, or `SUPERADMIN`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  The response reflects the data **embedded in the JWT at sign time**, not a live database read. If a user's `nombre`, `email`, or `rol` changes after the token was issued, `/api/auth/me` will return the stale values until the token expires or the user logs in again.
+</Note>
+
+### Error Responses
+
+| Status | `error` value | Cause |
+|--------|---------------|-------|
+| `401`  | `"No autenticado"` | The `token` cookie is absent, has expired, or its signature is invalid. |
+
+<Warning>
+  Always handle the `401` case in your frontend. A previously valid session can become invalid if the token has expired (after 7 days) or if the `JWT_SECRET` environment variable was rotated on the server.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET https://your-app.vercel.app/api/auth/me \
+  -H "Cookie: token=<your-jwt-token>"
+```
+
+```typescript TypeScript
+const res = await fetch('/api/auth/me', {
+  method: 'GET',
+  credentials: 'include', // required so the browser sends the token cookie
+})
+
+if (res.status === 401) {
+  // No active session — redirect to login
+  window.location.href = '/login'
+}
+
+const data = await res.json()
+// data.usuario = { id, email, nombre, rol }
+console.log('Logged in as:', data.usuario.nombre)
+```
+
+</CodeGroup>
+
+### Success response body
+
+```json
+{
+  "usuario": {
+    "id": "clx1a2b3c0000qwer1234abcd",
+    "email": "usuario@reservafacil.com",
+    "nombre": "Ana García",
+    "rol": "USUARIO"
+  }
+}
+```
+
+### Error response body
+
+```json
+{
+  "error": "No autenticado"
+}
+```

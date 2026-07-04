@@ -1,0 +1,130 @@
+---
+title: "Browse and Book Sports Courts in ReservaFácil"
+sidebarTitle: "Booking Courts"
+description: "Learn how to browse available courts, check pricing and capacity, and make a reservation for football, tennis, basketball, or volleyball in ReservaFácil."
+---
+
+ReservaFácil makes it easy to find and book a sports court in just a few steps. From the user dashboard you can explore every active court at a glance, see real-time pricing, and lock in a time slot — all without leaving the browser.
+
+## Browse Available Courts
+
+Navigate to **[/dashboard/canchas](http://localhost:3000/dashboard/canchas)** to see a responsive grid of every court that is currently active on the platform. Each court is rendered as a `CanchaCard` that surfaces the information you need to choose the right venue:
+
+<CardGroup cols={2}>
+  <Card title="Court Identity" icon="tag">
+    **Name** and **sport type** badge — one of `FUTBOL` ⚽, `TENIS` 🎾, `BASQUET` 🏀, or `VOLLEYBALL` 🏐 — displayed together so you can filter by eye at a glance.
+  </Card>
+  <Card title="Pricing & Capacity" icon="sack-dollar">
+    **Price per hour** shown in Peruvian soles (S/) and **maximum capacity** in persons, so you know the cost and whether your group fits before you book.
+  </Card>
+  <Card title="Description" icon="file-lines">
+    An optional free-text **description** written by the admin, covering surface type, lighting, amenities, or any other details relevant to the court.
+  </Card>
+  <Card title="Book Now Button" icon="calendar-check">
+    A **Reservar ahora** button opens the booking modal directly from the card, keeping the full court context in view while you fill out the form.
+  </Card>
+</CardGroup>
+
+<Note>
+  Only courts with an **active** status are shown on this page. If a court has been deactivated by an admin it will not appear in the grid, regardless of its past availability.
+</Note>
+
+## Making a Reservation
+
+Clicking **Reservar ahora** on any `CanchaCard` opens a modal containing the `ReservaForm`. Complete every required field to submit your booking.
+
+<Steps>
+  <Step title="Pick a Date">
+    Select the date you want to play. The date picker enforces a minimum of today — past dates are not selectable.
+
+    ```text
+    Field: fecha  (required)
+    Format: YYYY-MM-DD
+    Constraint: must be today or a future date
+    ```
+  </Step>
+  <Step title="Choose a Start Time">
+    Pick your **Hora inicio** from the dropdown. Available slots run from `08:00` to `20:00` in one-hour increments.
+
+    ```text
+    Field: horaInicio  (required)
+    Options: 08:00 | 09:00 | … | 20:00
+    ```
+  </Step>
+  <Step title="Choose an End Time">
+    Once a start time is selected, **Hora fin** is unlocked and only shows times strictly later than your start. This guarantees a minimum booking of one hour.
+
+    ```text
+    Field: horaFin  (required)
+    Options: all hours after horaInicio, up to 21:00
+    ```
+  </Step>
+  <Step title="Add Notes (Optional)">
+    Use the **Notas** textarea for any special requests — preferred side of the court, equipment needs, etc. This field is entirely optional and is stored as-is.
+
+    ```text
+    Field: notas  (optional)
+    ```
+  </Step>
+  <Step title="Review the Estimated Total">
+    As soon as both times are selected, a green summary banner shows the **estimated total** calculated from the court's hourly rate:
+
+    ```
+    total = precioPorHora × (horaFin_hour − horaInicio_hour)
+    ```
+
+    For example, booking a S/ 50/hr court from `09:00` to `11:00` yields **S/ 100**.
+  </Step>
+  <Step title="Confirm the Booking">
+    Click **Confirmar Reserva**. The form submits a `POST` request to `/api/reservas` with the following payload:
+
+    ```json
+    {
+      "canchaId": "clx...",
+      "fecha": "2025-08-15",
+      "horaInicio": "09:00",
+      "horaFin": "11:00",
+      "notas": "Trae raquetas extra",
+      "total": 100
+    }
+    ```
+
+    On success (`201 Created`) the modal closes and the dashboard refreshes to show your new reservation.
+  </Step>
+</Steps>
+
+## Conflict Detection
+
+Before a reservation is created, the API checks whether any existing **PENDIENTE** or **CONFIRMADA** booking on the same court and date overlaps with your requested time window:
+
+```ts
+// app/api/reservas/route.ts  —  overlap check
+const conflicto = await prisma.reserva.findFirst({
+  where: {
+    canchaId,
+    fecha: new Date(fecha),
+    estado: { in: ['PENDIENTE', 'CONFIRMADA'] },
+    AND: [
+      { horaInicio: { lt: horaFin } },
+      { horaFin:    { gt: horaInicio } },
+    ],
+  },
+})
+
+if (conflicto) {
+  return NextResponse.json(
+    { error: 'Ya existe una reserva en ese horario' },
+    { status: 409 }
+  )
+}
+```
+
+If an overlap is found the API returns **HTTP 409 Conflict** and the form displays the error message `"Ya existe una reserva en ese horario"`. Choose a different time slot and resubmit.
+
+<Tip>
+  Before hitting **Confirmar Reserva**, double-check both the start and end times. Once a `PENDIENTE` reservation exists it blocks that slot for other users, and only an admin can cancel a confirmed booking on your behalf.
+</Tip>
+
+## After Submitting
+
+Every new reservation is created with status **PENDIENTE**. It is now visible in your reservations list at `/dashboard/reservas` and will move to **CONFIRMADA** once an admin reviews and approves it. You will see the updated badge the next time you visit that page.

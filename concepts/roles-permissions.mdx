@@ -1,0 +1,134 @@
+---
+title: "Roles and Permissions in ReservaFácil"
+sidebarTitle: "Roles & Permissions"
+description: "ReservaFácil uses three roles — USUARIO, ADMIN, and SUPERADMIN — with progressively wider access to courts, reservations, and system management."
+---
+
+ReservaFácil implements a tiered role-based access control (RBAC) system with three distinct roles. Every user account carries exactly one role, assigned at registration and changeable only by a SUPERADMIN. Each role inherits all permissions of the role below it, forming a clear permission hierarchy that governs what each user can see, create, modify, and delete across the platform.
+
+## Role Overview
+
+<CardGroup cols={3}>
+  <Card title="USUARIO" icon="user">
+    The default role assigned to every new account. Can browse courts, create reservations, and manage their own bookings.
+  </Card>
+  <Card title="ADMIN" icon="shield-halved">
+    Staff role with full reservation management and court configuration access. Cannot manage user accounts or delete courts.
+  </Card>
+  <Card title="SUPERADMIN" icon="crown">
+    Full system access. Manages users, roles, court lifecycle, and global reports. The highest privilege level in the system.
+  </Card>
+</CardGroup>
+
+## Permissions by Role
+
+### USUARIO
+
+The base role granted to every self-registered account.
+
+| Area         | Allowed Actions                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| Courts       | Browse all active courts, view court details                         |
+| Reservations | Create new reservations, view their own reservations, cancel their own reservations with status `PENDIENTE` |
+| Users        | View and update their own profile                                    |
+| Reports      | None                                                                 |
+
+### ADMIN
+
+Extends USUARIO with operational management capabilities.
+
+| Area         | Allowed Actions                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| Courts       | All USUARIO actions + create courts, update court details and pricing |
+| Reservations | All USUARIO actions + view all reservations across all users, confirm any reservation, cancel any reservation |
+| Users        | View and update their own profile                                    |
+| Reports      | None                                                                 |
+
+### SUPERADMIN
+
+Full system control. Inherits every ADMIN permission and adds destructive and administrative operations.
+
+| Area         | Allowed Actions                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| Courts       | All ADMIN actions + delete courts permanently                        |
+| Reservations | All ADMIN actions + delete reservation records                       |
+| Users        | All ADMIN actions + view all user accounts, change user roles, activate/deactivate accounts, delete user accounts |
+| Reports      | Access global platform reports and analytics                         |
+
+<Warning>
+  A SUPERADMIN **cannot modify their own account** (role, activation status, or deletion) through the admin user-management API. This safeguard prevents accidental privilege loss or self-lockout.
+</Warning>
+
+## Route Protection
+
+The Next.js middleware in `middleware.ts` enforces role-based access on every request to a protected path. It uses a static map (`RUTAS_PROTEGIDAS`) that pairs each route prefix with the list of roles allowed to access it:
+
+```typescript
+const RUTAS_PROTEGIDAS: Record<string, string[]> = {
+  '/dashboard': ['USUARIO', 'ADMIN', 'SUPERADMIN'],
+  '/admin':     ['ADMIN', 'SUPERADMIN'],
+  '/superadmin': ['SUPERADMIN'],
+}
+```
+
+The middleware runs against the following route patterns (configured via Next.js `matcher`):
+
+```typescript
+export const config = {
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/superadmin/:path*'],
+}
+```
+
+**Request flow for a protected route:**
+
+1. The middleware extracts the `token` cookie from the incoming request.
+2. It checks whether the current pathname starts with any key in `RUTAS_PROTEGIDAS`.
+3. If no matching route prefix is found, the request passes through unchanged.
+4. If the token is missing, the user is redirected to `/login`.
+5. If the token is present but invalid or expired, the `token` cookie is deleted and the user is redirected to `/login`.
+6. If the token is valid but the user's role is not in the allowed list for that route, the user is redirected to their own role's dashboard (not a 403 page).
+
+## Role-Based Dashboard Redirect
+
+When a user visits a route they are not authorised for, the middleware calls `getDashboardPorRol` to determine the correct redirect destination rather than showing an error:
+
+```typescript
+function getDashboardPorRol(rol: string): string {
+  switch (rol) {
+    case 'SUPERADMIN': return '/superadmin'
+    case 'ADMIN':      return '/admin'
+    default:           return '/dashboard'
+  }
+}
+```
+
+This same logic governs where users land immediately after a successful login:
+
+| Role        | Post-Login Destination |
+| ----------- | ---------------------- |
+| USUARIO     | `/dashboard`           |
+| ADMIN       | `/admin`               |
+| SUPERADMIN  | `/superadmin`          |
+
+## Changing a User's Role
+
+Only a SUPERADMIN can change the role of another user. This is done via a `PATCH` request to the user management endpoint:
+
+```bash
+PATCH /api/usuarios/[id]
+```
+
+The request body must include the new `rol` value:
+
+```typescript
+// Request body
+{
+  "rol": "ADMIN" // "USUARIO" | "ADMIN" | "SUPERADMIN"
+}
+```
+
+The API validates that the authenticated caller is a SUPERADMIN and that the target user is not the caller's own account before applying the change. The updated role takes effect on the user's next login, when a fresh JWT is issued with the new role claim.
+
+<Tip>
+  If you need to demote an ADMIN back to USUARIO, use the same `PATCH /api/usuarios/[id]` endpoint with `"rol": "USUARIO"`. Role changes are not retroactive — active sessions continue to carry the old role until the token expires or the user logs out and back in.
+</Tip>

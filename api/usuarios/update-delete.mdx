@@ -1,0 +1,201 @@
+---
+title: "Update and Delete Users — SUPERADMIN Endpoints"
+sidebarTitle: "Update & Delete"
+description: "PATCH /api/usuarios/[id] updates a user's role or active status. DELETE removes them. Both require SUPERADMIN and cannot target the caller's own account."
+---
+
+The `/api/usuarios/[id]` endpoints allow superadmins to modify or permanently remove user accounts. Both operations require `SUPERADMIN` role and include a self-protection guard: a superadmin cannot modify or delete their own account, preventing accidental privilege revocation or account loss.
+
+---
+
+## PATCH /api/usuarios/\[id\]
+
+Partially updates a user record. Accepts any subset of the mutable `Usuario` fields and merges them into the existing record. The most common use cases are promoting or demoting a user's `rol` and toggling their `activo` status.
+
+**Requires `SUPERADMIN` role.**
+
+<Warning>
+  A superadmin cannot modify their own account. If the `id` path parameter matches the caller's session ID, the request is rejected with `400` — regardless of the fields being changed. This is a hard server-side constraint and cannot be bypassed. To change your own role or status, have another superadmin perform the update.
+</Warning>
+
+### Path parameter
+
+<ParamField path="id" type="string" required>
+  The CUID of the user to update (e.g. `clx9usr1abc2def`). Must not equal the caller's own ID.
+</ParamField>
+
+### Request body
+
+<ParamField body="rol" type="enum">
+  New role to assign to the user. One of: `USUARIO`, `ADMIN`, `SUPERADMIN`. Changing a user to `SUPERADMIN` grants them full administrative access.
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Set to `false` to deactivate the account (preventing login), or `true` to reactivate it.
+</ParamField>
+
+<ParamField body="nombre" type="string">
+  Updated display name for the user.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Updated email address. Must remain unique across all users.
+</ParamField>
+
+### Response `200`
+
+The response returns a trimmed user object containing only the identity and access fields — no reservation data or password.
+
+```json
+{
+  "ok": true,
+  "usuario": {
+    "id": "clx9usr1abc2def",
+    "nombre": "Ana López",
+    "email": "ana@example.com",
+    "rol": "ADMIN",
+    "activo": true
+  }
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="usuario.id" type="string">
+  CUID of the updated user.
+</ResponseField>
+
+<ResponseField name="usuario.nombre" type="string">
+  Display name after the update.
+</ResponseField>
+
+<ResponseField name="usuario.email" type="string">
+  Email address after the update.
+</ResponseField>
+
+<ResponseField name="usuario.rol" type="enum">
+  Role after the update. One of: `USUARIO`, `ADMIN`, `SUPERADMIN`.
+</ResponseField>
+
+<ResponseField name="usuario.activo" type="boolean">
+  Account active status after the update.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400` | `{ "error": "No puedes modificar tu propia cuenta" }` | The `id` in the path matches the caller's own session ID. |
+| `403` | `{ "error": "Sin permisos" }` | Caller is not authenticated or does not have `SUPERADMIN` role. |
+
+---
+
+## DELETE /api/usuarios/\[id\]
+
+Permanently deletes a user account and all associated data. This action is irreversible — there is no soft-delete or recycle mechanism.
+
+**Requires `SUPERADMIN` role.**
+
+### Path parameter
+
+<ParamField path="id" type="string" required>
+  The CUID of the user to delete. Must not equal the caller's own ID.
+</ParamField>
+
+### Response `200`
+
+```json
+{ "ok": true }
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+### Error responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400` | `{ "error": "No puedes eliminarte a ti mismo" }` | The `id` in the path matches the caller's own session ID. |
+| `403` | `{ "error": "Sin permisos" }` | Caller is not authenticated or does not have `SUPERADMIN` role. |
+
+---
+
+## Examples
+
+<CodeGroup>
+
+```bash Promote user to ADMIN (curl)
+curl -X PATCH https://your-domain.com/api/usuarios/clx9usr1abc2def \
+  -H "Cookie: session=<superadmin-session-cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{ "rol": "ADMIN" }'
+```
+
+```bash Deactivate a user account (curl)
+curl -X PATCH https://your-domain.com/api/usuarios/clx9usr1abc2def \
+  -H "Cookie: session=<superadmin-session-cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{ "activo": false }'
+```
+
+```bash Delete a user (curl)
+curl -X DELETE https://your-domain.com/api/usuarios/clx9usr1abc2def \
+  -H "Cookie: session=<superadmin-session-cookie>"
+```
+
+```typescript Promote user to ADMIN (TypeScript)
+const res = await fetch(`/api/usuarios/${userId}`, {
+  method: "PATCH",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ rol: "ADMIN" }),
+});
+
+if (res.status === 400) {
+  const { error } = await res.json();
+  // "No puedes modificar tu propia cuenta"
+  console.error(error);
+} else if (res.status === 403) {
+  console.error("SUPERADMIN role required");
+} else if (res.ok) {
+  const { usuario } = await res.json();
+  console.log(`${usuario.nombre} is now ${usuario.rol}`);
+}
+```
+
+```typescript Deactivate a user (TypeScript)
+const res = await fetch(`/api/usuarios/${userId}`, {
+  method: "PATCH",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ activo: false }),
+});
+
+if (!res.ok) {
+  const { error } = await res.json();
+  throw new Error(error);
+}
+
+const { usuario } = await res.json();
+console.log(usuario.activo); // false
+```
+
+```typescript Delete a user (TypeScript)
+const res = await fetch(`/api/usuarios/${userId}`, {
+  method: "DELETE",
+  credentials: "include",
+});
+
+if (res.status === 400) {
+  console.error("Cannot delete your own account");
+} else if (res.status === 403) {
+  console.error("SUPERADMIN role required");
+} else if (res.ok) {
+  console.log("User permanently deleted");
+}
+```
+
+</CodeGroup>

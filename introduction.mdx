@@ -1,0 +1,54 @@
+---
+title: "ReservaFácil: Sports Court Booking Made Simple"
+sidebarTitle: "Introduction"
+description: "ReservaFácil is an open-source sports court booking platform with role-based dashboards, conflict-free scheduling, and a REST API built on Next.js and Prisma."
+---
+
+ReservaFácil (also known as CanchaYA) is a full-stack sports court booking platform designed for sports facilities, community centers, and clubs that need a straightforward way to manage court availability and player reservations. Built on Next.js 16 with an App Router architecture, it gives end users a clean interface to browse courts and book time slots, while admins and superadmins get dedicated dashboards to manage courts, review reservations, and oversee the entire platform — all without double-bookings thanks to built-in time-slot conflict detection.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Role-Based Access Control" icon="shield-halved">
+    Three distinct roles — **USUARIO**, **ADMIN**, and **SUPERADMIN** — each redirect to their own dashboard on login, with protected routes enforced at the middleware level.
+  </Card>
+  <Card title="Multi-Sport Court Management" icon="futbol">
+    Create and manage courts across four sport types: **football (FUTBOL)**, **tennis (TENIS)**, **basketball (BASQUET)**, and **volleyball (VOLLEYBALL)**, each with pricing, capacity, and optional images.
+  </Card>
+  <Card title="Conflict-Free Scheduling" icon="calendar-check">
+    Every booking request is validated against existing reservations for the same court and date, preventing overlapping time slots before they reach the database.
+  </Card>
+  <Card title="JWT Authentication" icon="key">
+    Stateless authentication via JSON Web Tokens signed with HS256, stored in an HTTP-only cookie named `token` with a 7-day expiry — no session storage required.
+  </Card>
+  <Card title="Admin Reservation Dashboard" icon="table-columns">
+    Admins can view all reservations across their courts, confirm or cancel bookings, and update statuses (PENDIENTE → CONFIRMADA → COMPLETADA / CANCELADA) from a single panel.
+  </Card>
+  <Card title="Superadmin System Management" icon="crown">
+    Superadmins have full platform visibility: system-wide reservation reports, user management (activate/deactivate accounts, change roles), and access to all admin functions.
+  </Card>
+</CardGroup>
+
+## Tech Stack
+
+- **Next.js 16** — App Router, Server Actions, and API Routes
+- **TypeScript** — end-to-end type safety across the full stack
+- **Prisma ORM** — schema-first database access with PostgreSQL
+- **PostgreSQL** — relational database for users, courts, and reservations
+- **Tailwind CSS 4** — utility-first styling with `tailwind-merge` and `clsx`
+- **jose** — JWT signing and verification (HS256) for stateless auth
+- **bcryptjs** — password hashing for secure credential storage
+
+## Project Structure at a Glance
+
+The platform models three core database entities defined in `prisma/schema.prisma`:
+
+| Model      | Spanish name | Purpose                                        |
+| ---------- | ------------ | ---------------------------------------------- |
+| `Usuario`  | User         | Platform accounts with role assignment         |
+| `Cancha`   | Court        | Bookable sports courts with type and pricing   |
+| `Reserva`  | Reservation  | Bookings linking a user, a court, and a time   |
+
+<Note>
+  ReservaFácil's UI and data layer are intentionally in **Spanish**. Key terms you'll encounter throughout the codebase and API: *cancha* (court), *reserva* (booking/reservation), *usuario* (user), *rol* (role), and *estado* (status). English equivalents are used in this documentation for clarity.
+</Note>

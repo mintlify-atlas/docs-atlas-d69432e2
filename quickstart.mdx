@@ -1,47 +1,118 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with ReservaFácil in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Clone ReservaFácil, connect a PostgreSQL database, seed test data, and run the development server. Full working app in under 5 minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you from zero to a fully running ReservaFácil instance on your local machine. By the end you'll have the development server running, the database schema applied, and three test accounts ready to log in with — one for each role.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure you have the following available:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+- **Node.js 18 or later** — check with `node -v`
+- **A PostgreSQL database** — local install or a free hosted instance (see tip below)
+- **Git** — to clone the repository
 
-## Get started
+<Tip>
+  [Neon.tech](https://neon.tech) offers a free-tier serverless PostgreSQL database that's ready in under a minute — no local PostgreSQL installation needed. Create a project, copy the connection string from the dashboard, and use it as your `DATABASE_URL`. Neon also supports SSL by default, which matches the `?sslmode=require` flag in `.env.example`.
+</Tip>
+
+## Setup Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository and install dependencies">
+    Clone the ReservaFácil repository and install all Node.js dependencies. The `postinstall` script runs `prisma generate` automatically after install.
 
     ```bash
-    npm install your-package
+    git clone https://github.com/Nyverie/reservafacil.git
+    cd reservafacil
+    npm install
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Configure environment variables">
+    Copy the example environment file to `.env.local`, which Next.js loads automatically during development.
 
     ```bash
-    your-cli init
+    cp .env.example .env.local
+    ```
+
+    Open `.env.local` and fill in each variable:
+
+    ```bash
+    # PostgreSQL connection string — replace with your actual credentials
+    DATABASE_URL="postgresql://user:password@host:5432/reservafacil?sslmode=require"
+
+    # Random secret used to sign JWT tokens — must be at least 32 characters
+    JWT_SECRET="tu_secreto_super_largo_aqui_minimo_32_caracteres"
+
+    # Full public URL of the app — only required in production
+    NEXTAUTH_URL="https://tu-proyecto.vercel.app"
+    ```
+
+    - **`DATABASE_URL`** — your PostgreSQL connection string. If you're using Neon, paste the connection string from the Neon dashboard.
+    - **`JWT_SECRET`** — any random string of at least 32 characters used to sign and verify JWT tokens. See the [Environment Setup](/environment-setup) page for how to generate a secure value.
+    - **`NEXTAUTH_URL`** — the canonical public URL of your deployment. Leave this as the placeholder for local development; it's only required when deploying to production.
+  </Step>
+
+  <Step title="Push the database schema">
+    Apply the Prisma schema to your database. This creates the `Usuario`, `Cancha`, and `Reserva` tables along with all enums and constraints — no migration files required during development.
+
+    ```bash
+    npx prisma db push
+    ```
+
+    You should see output confirming that the schema was applied. If you get a connection error, double-check your `DATABASE_URL` in `.env.local`.
+  </Step>
+
+  <Step title="Seed test data">
+    Run the seed script to populate the database with three test user accounts and three sample courts across different sport types.
+
+    ```bash
+    npm run seed
+    ```
+
+    The script outputs the created accounts on success:
+
+    ```
+    Iniciando seed...
+    Seed completado!
+    Superadmin: superadmin@reservafacil.com / superadmin123
+    Admin: admin@reservafacil.com / admin123
+    Usuario: usuario@reservafacil.com / usuario123
     ```
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Start the development server">
+    Launch the Next.js development server:
 
     ```bash
-    your-cli start
+    npm run dev
     ```
+
+    Open [http://localhost:3000](http://localhost:3000) in your browser. You should see the ReservaFácil landing page. Navigate to `/login` (or click the login link) to sign in with one of the test accounts below.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Test Accounts
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+The seed script creates one account for each role. Use these credentials to explore the platform:
+
+| Role         | Email                          | Password       | Dashboard redirect  |
+| ------------ | ------------------------------ | -------------- | ------------------- |
+| `SUPERADMIN` | superadmin@reservafacil.com    | superadmin123  | `/superadmin`       |
+| `ADMIN`      | admin@reservafacil.com         | admin123       | `/admin`            |
+| `USUARIO`    | usuario@reservafacil.com       | usuario123     | `/dashboard`        |
+
+## Role-Based Redirects After Login
+
+After a successful login, the server reads the `rol` field from the JWT payload and redirects each user to their dedicated area:
+
+- **USUARIO** → `/dashboard` — browse available courts, make and view personal reservations
+- **ADMIN** → `/admin` — manage courts, confirm or cancel reservations across the platform
+- **SUPERADMIN** → `/superadmin` — full system access including user management, role changes, and platform-wide reports
+
+<Note>
+  Attempting to access a dashboard you don't have permission for (e.g. a `USUARIO` navigating to `/admin`) will result in a redirect back to your own dashboard. Route protection is enforced in Next.js middleware using the `token` HTTP-only cookie.
+</Note>
