@@ -1,5 +1,5 @@
 ---
-title: "Update and Delete Users — SUPERADMIN Endpoints"
+title: "Update and Delete Users — ReservaFácil SUPERADMIN API"
 sidebarTitle: "Update & Delete"
 description: "PATCH /api/usuarios/[id] updates a user's role or active status. DELETE removes them. Both require SUPERADMIN and cannot target the caller's own account."
 ---
@@ -129,21 +129,21 @@ Permanently deletes a user account and all associated data. This action is irrev
 
 ```bash Promote user to ADMIN (curl)
 curl -X PATCH https://your-domain.com/api/usuarios/clx9usr1abc2def \
-  -H "Cookie: session=<superadmin-session-cookie>" \
+  --cookie "token=<your_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{ "rol": "ADMIN" }'
 ```
 
 ```bash Deactivate a user account (curl)
 curl -X PATCH https://your-domain.com/api/usuarios/clx9usr1abc2def \
-  -H "Cookie: session=<superadmin-session-cookie>" \
+  --cookie "token=<your_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{ "activo": false }'
 ```
 
 ```bash Delete a user (curl)
 curl -X DELETE https://your-domain.com/api/usuarios/clx9usr1abc2def \
-  -H "Cookie: session=<superadmin-session-cookie>"
+  --cookie "token=<your_jwt_token>"
 ```
 
 ```typescript Promote user to ADMIN (TypeScript)

@@ -1,7 +1,7 @@
 ---
-title: "Get the Currently Authenticated User"
-sidebarTitle: "GET /me"
-description: "Reads the HTTP-only token cookie, verifies the JWT, and returns the session payload for the currently logged-in user."
+title: "Get the Authenticated User Session | ReservaFácil Auth"
+sidebarTitle: "Get Me"
+description: "Reads and verifies the HTTP-only token cookie, then returns the decoded JWT payload containing the current user's id, nombre, email, and rol."
 ---
 
 Returns the identity of the user associated with the current session. The server reads the `token` cookie, verifies its HS256 signature and expiry via `getSession()`, and returns the decoded payload. This endpoint is the canonical way to hydrate client-side auth state on page load — for example, to show the user's name in a navbar or gate access to protected UI routes.

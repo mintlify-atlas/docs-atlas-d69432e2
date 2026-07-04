@@ -1,7 +1,7 @@
 ---
-title: "Configure ReservaFácil Environment Variables"
+title: "Environment Variables for ReservaFácil: Complete Guide"
 sidebarTitle: "Environment"
-description: "Set up the three required environment variables for ReservaFácil: DATABASE_URL for PostgreSQL, JWT_SECRET for token signing, and NEXTAUTH_URL for production."
+description: "Set up the three required environment variables for ReservaFácil: DATABASE_URL, JWT_SECRET for token signing, and NEXTAUTH_URL for production deployments."
 ---
 
 ReservaFácil requires three environment variables to run. These control how the application connects to its PostgreSQL database, how it signs and verifies JWT authentication tokens, and what public URL it considers canonical in production. All three are defined in `.env.example` at the root of the repository — copy this file to `.env.local` for local development before starting the server.
@@ -26,13 +26,13 @@ NEXTAUTH_URL="https://tu-proyecto.vercel.app"
 <ParamField path="DATABASE_URL" type="string" required>
   The full PostgreSQL connection string used by Prisma to connect to your database. Must follow the format:
 
-  ```
+  ```text
   postgresql://user:password@host:5432/reservafacil?sslmode=require
   ```
 
   Replace `user`, `password`, `host`, and the database name (`reservafacil`) with your actual credentials. The `?sslmode=require` flag is needed for most hosted PostgreSQL providers (including Neon, Supabase, and Railway) and should be kept in place for production use. For a local PostgreSQL instance without SSL you can omit it:
 
-  ```
+  ```text
   postgresql://postgres:mypassword@localhost:5432/reservafacil
   ```
 </ParamField>
@@ -40,7 +40,7 @@ NEXTAUTH_URL="https://tu-proyecto.vercel.app"
 <ParamField path="JWT_SECRET" type="string" required>
   A secret string used to sign and verify JSON Web Tokens with the **HS256** algorithm via the `jose` library. This value must be **at least 32 characters** long. Tokens are stored in an HTTP-only cookie named `token` with a 7-day expiry — anyone who obtains this secret can forge valid tokens, so treat it like a password.
 
-  ```
+  ```text
   JWT_SECRET="replace-this-with-a-real-random-secret-value"
   ```
 
@@ -50,7 +50,7 @@ NEXTAUTH_URL="https://tu-proyecto.vercel.app"
 <ParamField path="NEXTAUTH_URL" type="string" required>
   The full canonical public URL of your deployed application, including the `https://` scheme and no trailing slash. This is used to construct absolute URLs in production contexts.
 
-  ```
+  ```text
   NEXTAUTH_URL="https://your-project.vercel.app"
   ```
 

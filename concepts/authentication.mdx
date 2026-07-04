@@ -1,5 +1,5 @@
 ---
-title: "How Authentication Works in ReservaFácil"
+title: "JWT Authentication and Session Management in ReservaFácil"
 sidebarTitle: "Authentication"
 description: "ReservaFácil uses JWT tokens stored in HTTP-only cookies. Learn how tokens are issued, verified, and used to protect routes and API endpoints."
 ---
@@ -9,8 +9,8 @@ ReservaFácil authenticates users with JSON Web Tokens (JWTs) signed using the H
 ## Authentication Flow
 
 <Steps>
-  <Step title="Register or Log In">
-    The client sends a `POST` request to `/api/auth/register` (with `nombre`, `email`, `password`) or `/api/auth/login` (with `email`, `password`). The API validates the credentials — checking the database for the user record, verifying `activo: true`, and comparing the submitted password against the stored bcrypt hash.
+  <Step title="Log In">
+    The client sends a `POST` request to `/api/auth/login` with `email` and `password`. The API looks up the user record in the database, checks that `activo` is `true`, and compares the submitted password against the stored bcrypt hash using `bcryptjs`.
   </Step>
   <Step title="Token Issued and Set in Cookie">
     On success, the API calls `signToken()` to produce a signed JWT containing the user's `id`, `email`, `nombre`, and `rol`. The token is written into an HTTP-only cookie named `token` with a 7-day expiry. The JSON response also returns the public user object (without the password).
@@ -65,10 +65,17 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
     return null
   }
 }
+
+export function getTokenFromCookie(cookieHeader: string | null): string | null {
+  if (!cookieHeader) return null
+  const match = cookieHeader.match(/token=([^;]+)/)
+  return match ? match[1] : null
+}
 ```
 
-- `signToken` — Creates and signs a new JWT from a `JWTPayload`. Sets the algorithm to `HS256` and the expiry to `7d`. Called by the login and register route handlers immediately after validating credentials.
+- `signToken` — Creates and signs a new JWT from a `JWTPayload`. Sets the algorithm to `HS256` and the expiry to `7d`. Called by the login route handler immediately after validating credentials.
 - `verifyToken` — Decodes and verifies an existing token string. Returns the `JWTPayload` on success, or `null` if the token is missing, malformed, or expired. Used by both the middleware and `getSession()`.
+- `getTokenFromCookie` — Extracts the raw token string from a `Cookie` header string using a regex match on the `token=` segment. Useful in contexts where the `cookies()` Next.js helper is not available (e.g. custom middleware utilities or edge functions).
 
 ## Session Helpers
 
@@ -147,14 +154,14 @@ export async function DELETE(req: Request) {
 
 ## Cookie Security Attributes
 
-The `token` cookie is set with the following attributes in both `/api/auth/login` and `/api/auth/register`:
+The `token` cookie is set with the following attributes by `/api/auth/login`:
 
 | Attribute  | Value                                  | Purpose                                                        |
 | ---------- | -------------------------------------- | -------------------------------------------------------------- |
 | `httpOnly` | `true`                                 | Prevents JavaScript from reading the cookie.                   |
 | `secure`   | `true` in production, `false` in dev   | Ensures the cookie is only sent over HTTPS in production.      |
 | `sameSite` | `lax`                                  | Sent on same-site requests and top-level cross-site navigations (e.g. following a link), but not on cross-origin `fetch`. Provides CSRF protection. |
-| `maxAge`   | `60 * 60 * 24 * 7` (604 800 seconds)   | Cookie and token both expire after 7 days.                     |
+| `maxAge`   | `60 * 60 * 24 * 7` (604,800 seconds)   | Cookie and token both expire after 7 days.                     |
 | `path`     | `/`                                    | Cookie is sent with every request to the domain.              |
 
 <Note>
@@ -197,8 +204,8 @@ The route-to-role map checked by the middleware:
 
 ```typescript
 const RUTAS_PROTEGIDAS: Record<string, string[]> = {
-  '/dashboard':  ['USUARIO', 'ADMIN', 'SUPERADMIN'],
-  '/admin':      ['ADMIN', 'SUPERADMIN'],
+  '/dashboard': ['USUARIO', 'ADMIN', 'SUPERADMIN'],
+  '/admin': ['ADMIN', 'SUPERADMIN'],
   '/superadmin': ['SUPERADMIN'],
 }
 ```

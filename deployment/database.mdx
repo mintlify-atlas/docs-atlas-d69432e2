@@ -1,7 +1,7 @@
 ---
-title: "Configure PostgreSQL for ReservaFácil"
+title: "Configure Your PostgreSQL Database for ReservaFácil"
 sidebarTitle: "Database"
-description: "Set up a PostgreSQL database for ReservaFácil using Neon.tech or any PostgreSQL provider. Covers schema push, migrations, and the seed script."
+description: "Set up a PostgreSQL database for ReservaFácil using Neon.tech or any compatible provider. Covers schema push with Prisma and the local seed script."
 ---
 
 ReservaFácil uses PostgreSQL as its sole data store, accessed through Prisma ORM. The schema covers three core models — `Usuario`, `Cancha`, and `Reserva` — along with the enums that drive roles, court types, and booking states. This guide walks you through choosing and provisioning a database, pushing the schema, and optionally seeding local test data.
@@ -130,7 +130,7 @@ Usuario: usuario@reservafacil.com / usuario123
 
 ## Inspecting the Database with Prisma Studio
 
-Prisma Studio is a visual browser-based editor for your database. It is useful for verifying that migrations applied correctly and for inspecting or manually editing records during development.
+Prisma Studio is a visual browser-based editor for your database. It is useful for verifying that the schema push applied correctly and for inspecting or manually editing records during development.
 
 ```bash
 npx prisma studio

@@ -1,5 +1,5 @@
 ---
-title: "ReservaFácil Data Model and Schema Reference"
+title: "ReservaFácil Data Model and Prisma Schema Reference"
 sidebarTitle: "Data Model"
 description: "ReservaFácil's PostgreSQL schema has three core models — Usuario, Cancha, and Reserva — with enums for roles, court types, and reservation statuses."
 ---
@@ -50,16 +50,16 @@ model Usuario {
 }
 
 model Cancha {
-  id            String     @id @default(cuid())
-  nombre        String
-  tipo          TipoCancha
-  descripcion   String?
+  id          String     @id @default(cuid())
+  nombre      String
+  tipo        TipoCancha
+  descripcion String?
   precioPorHora Float
-  capacidad     Int
-  activa        Boolean    @default(true)
-  imagen        String?
-  creadoEn      DateTime   @default(now())
-  reservas      Reserva[]
+  capacidad   Int
+  activa      Boolean    @default(true)
+  imagen      String?
+  creadoEn    DateTime   @default(now())
+  reservas    Reserva[]
 }
 
 model Reserva {

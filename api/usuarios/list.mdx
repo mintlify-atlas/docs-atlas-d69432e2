@@ -1,6 +1,6 @@
 ---
-title: "List All Users — SUPERADMIN Endpoint"
-sidebarTitle: "GET /usuarios"
+title: "List All Users — ReservaFácil SUPERADMIN User Management"
+sidebarTitle: "List Users"
 description: "GET /api/usuarios returns all registered users with their role, active status, and total reservation count. Restricted to SUPERADMIN callers only."
 ---
 
@@ -95,7 +95,7 @@ Returns all `Usuario` records ordered by registration date descending (most rece
 
 ```bash List all users (curl)
 curl https://your-domain.com/api/usuarios \
-  -H "Cookie: session=<superadmin-session-cookie>"
+  --cookie "token=<your_jwt_token>"
 ```
 
 ```typescript List all users (TypeScript)

@@ -1,5 +1,5 @@
 ---
-title: "List and Create Court Reservations"
+title: "List and Create Court Reservations — ReservaFácil API"
 sidebarTitle: "List & Create"
 description: "GET /api/reservas lists reservations (own for users, all for admins). POST /api/reservas creates a booking with automatic time-slot conflict detection."
 ---
@@ -195,12 +195,12 @@ All new reservations are created with `estado: "PENDIENTE"` regardless of the ca
 ```bash List reservations (curl)
 # As a regular user — returns only your own reservations
 curl https://your-domain.com/api/reservas \
-  -H "Cookie: session=<your-session-cookie>"
+  --cookie "token=<your_jwt_token>"
 ```
 
 ```bash Create a reservation (curl)
 curl -X POST https://your-domain.com/api/reservas \
-  -H "Cookie: session=<your-session-cookie>" \
+  --cookie "token=<your_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
     "canchaId": "clx5crt1abc2def",

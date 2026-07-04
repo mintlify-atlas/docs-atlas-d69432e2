@@ -1,7 +1,7 @@
 ---
-title: "Authenticate with Email and Password"
-sidebarTitle: "POST /login"
-description: "Validates user credentials, issues a signed HS256 JWT, and sets an HTTP-only token cookie valid for 7 days."
+title: "Log In with Email and Password | ReservaFácil Auth API"
+sidebarTitle: "Login"
+description: "Validates the submitted email and password credentials, issues a signed HS256 JWT, and sets an HTTP-only token cookie that expires in 7 days."
 ---
 
 Exchanges a registered email and password for a signed JWT session. On success the server writes a `token` cookie directly to the browser — no client-side token storage is required. The cookie is HTTP-only and scoped to the root path, so it is automatically attached to every subsequent request made from the same origin.
@@ -64,7 +64,7 @@ Returns the authenticated user's public profile and sets the `token` cookie.
 | `500`  | `"Error interno del servidor"` | An unexpected server-side error occurred. |
 
 <Warning>
-  A `401` is returned for both "user not found" and "wrong password" to avoid leaking whether an email address is registered.
+  A `401` is returned for a missing user, an inactive account (`activo = false`), and a wrong password alike — all three cases return the same `"Credenciales inválidas"` message to avoid leaking whether an email address is registered or an account is active.
 </Warning>
 
 ## Examples

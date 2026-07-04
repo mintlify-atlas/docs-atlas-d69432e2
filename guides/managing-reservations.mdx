@@ -1,5 +1,5 @@
 ---
-title: "View and Manage Your Reservations"
+title: "View and Manage Your Court Reservations in ReservaFácil"
 sidebarTitle: "My Reservations"
 description: "Track your court bookings in ReservaFácil — view status, cancel pending reservations, and understand the reservation lifecycle from pending to completed."
 ---
@@ -58,7 +58,7 @@ PENDIENTE ──► CONFIRMADA ──► COMPLETADA
     **Blue badge.** The session has taken place and the reservation is closed. No further changes are possible.
   </Card>
   <Card title="CANCELADA" icon="circle-xmark">
-    **Red badge.** The reservation was cancelled — either by you before confirmation, or by an admin at any point. The slot is freed for others.
+    **Red badge.** The reservation was cancelled — either by you while it was still `PENDIENTE`, or by an admin while it was `PENDIENTE`. The slot is freed for others.
   </Card>
 </CardGroup>
 
@@ -88,5 +88,5 @@ You can cancel a reservation yourself only while it is in **PENDIENTE** status. 
 </Steps>
 
 <Warning>
-  Once a reservation moves to **CONFIRMADA** the self-cancel button is no longer shown. You must contact an admin directly to request a cancellation — they can update the status from the admin panel at `/admin/reservas`.
+  Once a reservation moves to **CONFIRMADA** the self-cancel button is no longer shown. The admin panel only offers a **🏁 Completar** action for confirmed reservations — there is no panel-level cancel button for confirmed bookings. Contact an admin if you need to discuss a confirmed reservation.
 </Warning>

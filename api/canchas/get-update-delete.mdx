@@ -1,7 +1,7 @@
 ---
-title: "Get, Update, and Delete a Court by ID"
+title: "Retrieve, Update, and Delete a Court by ID — ReservaFácil"
 sidebarTitle: "Get, Update, Delete"
-description: "GET /api/canchas/[id] retrieves a court. PUT updates it (ADMIN+). DELETE permanently removes it (SUPERADMIN only)."
+description: "GET /api/canchas/[id] retrieves a single court. PUT updates it (ADMIN or SUPERADMIN). DELETE permanently removes it (SUPERADMIN only)."
 ---
 
 These three endpoints operate on a single court identified by its unique `id`. Retrieval is public and requires no session. Updating a court requires an **ADMIN** or **SUPERADMIN** role, while deletion is restricted exclusively to **SUPERADMIN** accounts. The `token` HTTP-only cookie is read automatically on same-origin requests for the authenticated operations.

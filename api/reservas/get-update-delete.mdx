@@ -1,5 +1,5 @@
 ---
-title: "Get, Update, and Delete Reservations by ID"
+title: "Get, Update, and Delete Reservations by ID — ReservaFácil"
 sidebarTitle: "Get, Update, Delete"
 description: "GET /api/reservas/[id] retrieves a reservation. PATCH updates its status. DELETE removes it permanently. Role-based access controls apply throughout."
 ---
@@ -223,26 +223,26 @@ Permanently deletes a reservation. This action is irreversible.
 
 ```bash Get a reservation (curl)
 curl https://your-domain.com/api/reservas/clx1abc2def3ghi \
-  -H "Cookie: session=<your-session-cookie>"
+  --cookie "token=<your_jwt_token>"
 ```
 
 ```bash Cancel a reservation — USUARIO (curl)
 curl -X PATCH https://your-domain.com/api/reservas/clx1abc2def3ghi \
-  -H "Cookie: session=<your-session-cookie>" \
+  --cookie "token=<your_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{ "estado": "CANCELADA" }'
 ```
 
 ```bash Confirm a reservation — ADMIN (curl)
 curl -X PATCH https://your-domain.com/api/reservas/clx1abc2def3ghi \
-  -H "Cookie: session=<admin-session-cookie>" \
+  --cookie "token=<admin_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{ "estado": "CONFIRMADA", "notas": "Confirmado telefónicamente" }'
 ```
 
 ```bash Delete a reservation — ADMIN (curl)
 curl -X DELETE https://your-domain.com/api/reservas/clx1abc2def3ghi \
-  -H "Cookie: session=<admin-session-cookie>"
+  --cookie "token=<admin_jwt_token>"
 ```
 
 ```typescript Get a reservation (TypeScript)

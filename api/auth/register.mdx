@@ -1,7 +1,7 @@
 ---
-title: "Register a New User Account"
-sidebarTitle: "POST /register"
-description: "Creates a new USUARIO account, hashes the password with bcrypt, and issues an HTTP-only JWT cookie valid for 7 days."
+title: "Register a New User Account | ReservaFácil Auth API"
+sidebarTitle: "Register"
+description: "Creates a new USUARIO account, hashes the password with bcrypt at 10 rounds, and sets an HTTP-only JWT cookie valid for 7 days on success."
 ---
 
 Creates a new user account with the default role of `USUARIO`. The submitted password is hashed with bcrypt at 10 rounds before being stored — the plain-text value is never persisted. On success, the server signs a JWT and writes it to an HTTP-only `token` cookie, logging the user in immediately without a separate login step.

@@ -1,6 +1,6 @@
 ---
-title: "Roles and Permissions in ReservaFácil"
-sidebarTitle: "Roles & Permissions"
+title: "ReservaFácil Roles, Permissions, and Route Protection"
+sidebarTitle: "Roles and Permissions"
 description: "ReservaFácil uses three roles — USUARIO, ADMIN, and SUPERADMIN — with progressively wider access to courts, reservations, and system management."
 ---
 
@@ -66,7 +66,7 @@ The Next.js middleware in `middleware.ts` enforces role-based access on every re
 ```typescript
 const RUTAS_PROTEGIDAS: Record<string, string[]> = {
   '/dashboard': ['USUARIO', 'ADMIN', 'SUPERADMIN'],
-  '/admin':     ['ADMIN', 'SUPERADMIN'],
+  '/admin': ['ADMIN', 'SUPERADMIN'],
   '/superadmin': ['SUPERADMIN'],
 }
 ```
@@ -96,8 +96,8 @@ When a user visits a route they are not authorised for, the middleware calls `ge
 function getDashboardPorRol(rol: string): string {
   switch (rol) {
     case 'SUPERADMIN': return '/superadmin'
-    case 'ADMIN':      return '/admin'
-    default:           return '/dashboard'
+    case 'ADMIN': return '/admin'
+    default: return '/dashboard'
   }
 }
 ```
